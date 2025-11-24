@@ -1,0 +1,361 @@
+---
+alwaysApply: true
+---
+
+# 项目代码规范
+
+## 1. 页面视图目录结构规范
+
+每个页面视图目录必须遵循以下标准结构：
+
+```
+src/views/[pageName]/
+├── [PageName]View.vue          # 主视图组件
+├── use[PageName].ts            # 存放该数据结构需要使用到的抽象方法和统一数据
+└── components/                 # 存放各种弹窗和需要抽象出来的组件
+    ├── [ComponentName]Dialog.vue
+    └── ...
+```
+
+### 目录说明
+
+- **`[PageName]View.vue`**: 主视图组件，负责页面布局和业务逻辑编排
+- **`use[PageName].ts`**: 使用 Vue Composition API 的 composable 函数，包含：
+  - 响应式数据定义（`ref`, `reactive`）
+  - 表格列配置（`columns`）
+  - 分页配置（`pagination`）
+  - 搜索关键词（`searchKeyword`，如需要）
+  - CRUD 操作方法（`list`, `fetch`, `create`, `update`, `remove` 等）
+  - 加载状态（`isLoading`）
+- **`components/`**: 存放可复用的子组件，特别是：
+  - 编辑/创建弹窗组件（如 `AdminEditDialog.vue`）
+  - 其他需要抽象出来的业务组件
+
+### 示例参考
+
+参考以下实现：
+- `src/views/admin/` - 管理员管理页面
+- `src/views/superadmin/` - 超级管理员管理页面
+
+### use[PageName].ts 标准结构
+
+**重要原则：单一数据源（Single Source of Truth）**
+
+`use[PageName].ts` 中定义的响应式数据必须遵循单一数据源原则，确保：
+- 所有组件（主视图、弹窗、表格等）共享**同一个**响应式数据引用
+- 当数据在任何地方被修改时，所有使用该数据的地方都能**实时更新**
+- 系统中不应该出现两个相同的数据体包含不同数据的情况
+
+**实现方式：使用单例模式（推荐）**
+
+使用单例模式确保多次调用 `use[Entity]Data()` 都返回同一个响应式引用。实现方式很简单：添加一个 `if` 语句，如果系统中已有数据体就返回该数据体，否则创建并返回一个新的。
+
+```typescript
+import { ref } from 'vue';
+import { message } from 'ant-design-vue';
+import { [Entity]Api } from '@/httpapis/[apiFile]';
+import { [Entity] } from '@/model/[modelFile]';
+import type { ApiResponse, PaginatedResponse } from '@/httpapis/[apiFile]';
+
+// 单例状态：如果系统中已有数据体就使用该数据体，否则创建新的
+let state: {
+  isLoading: ReturnType<typeof ref<boolean>>;
+  data: ReturnType<typeof ref<[Entity][]>>;
+  pagination: ReturnType<typeof ref<{ currentPage: number; pageSize: number; total: number }>>;
+  searchKeyword: ReturnType<typeof ref<string>>;
+} | null = null;
+
+export const use[Entity]Data = () => {
+  // 如果系统中已有数据体，直接返回；否则创建新的数据体
+  if (!state) {
+    state = {
+      isLoading: ref(false),
+      data: ref<[Entity][]>([]),
+      pagination: ref({
+        currentPage: 1,
+        pageSize: 20,
+        total: 0,
+      }),
+      searchKeyword: ref(''), // 如需要搜索功能
+    };
+  }
+
+  const columns = [
+    // 表格列配置
+  ];
+
+  const list = async () => {
+    state!.isLoading.value = true;
+    try {
+      const response = await [Entity]Api.list({
+        pageNum: state!.pagination.value.currentPage,
+        pageSize: state!.pagination.value.pageSize,
+      });
+      const responseData = response.data.data as PaginatedResponse<[Entity]>;
+      state!.data.value = responseData.items;
+      state!.pagination.value.total = responseData.page.total;
+    } catch (error: any) {
+      message.error(`获取列表失败: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    } finally {
+      state!.isLoading.value = false;
+    }
+  };
+
+  const fetch = async (id: number): Promise<[Entity]> => {
+    state!.isLoading.value = true;
+    try {
+      const response = await [Entity]Api.list({ id });
+      return response.data.data as [Entity];
+    } catch (error: any) {
+      message.error(`获取详情失败: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    } finally {
+      state!.isLoading.value = false;
+    }
+  };
+
+  const create = async (data: { ... }) => {
+    state!.isLoading.value = true;
+    try {
+      await [Entity]Api.create(data);
+      message.success('创建成功');
+      // 创建成功后，调用 list() 刷新共享的 data
+      await list();
+    } catch (error: any) {
+      message.error(`创建失败: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    } finally {
+      state!.isLoading.value = false;
+    }
+  };
+
+  const update = async (data: { ... }) => {
+    state!.isLoading.value = true;
+    try {
+      await [Entity]Api.update(data);
+      message.success('更新成功');
+      // 更新成功后，调用 list() 刷新共享的 data
+      await list();
+    } catch (error: any) {
+      message.error(`更新失败: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    } finally {
+      state!.isLoading.value = false;
+    }
+  };
+
+  const remove = async (id: number) => {
+    state!.isLoading.value = true;
+    try {
+      await [Entity]Api.remove({ id });
+      message.success('删除成功');
+      // 删除成功后，调用 list() 刷新共享的 data
+      await list();
+    } catch (error: any) {
+      message.error(`删除失败: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    } finally {
+      state!.isLoading.value = false;
+    }
+  };
+
+  return {
+    ...state,       // 返回共享的响应式引用
+    columns,
+    list,
+    fetch,
+    create,
+    update,
+    remove,
+  };
+};
+```
+
+**使用示例：**
+
+```typescript
+// 主视图组件 [PageName]View.vue
+<script setup lang="ts">
+import { use[Entity]Data } from './use[Entity]';
+
+// 获取共享的数据和方法
+const { data, columns, pagination, list, remove } = use[Entity]Data();
+</script>
+
+// 弹窗组件 components/[ComponentName]Dialog.vue
+<script setup lang="ts">
+import { use[Entity]Data } from '../use[Entity]';
+
+// 获取同一个共享的数据引用
+const { data, create, update } = use[Entity]Data();
+// 当 create 或 update 成功后，主视图的 data 会自动更新
+</script>
+```
+
+**关键要点：**
+
+1. ✅ **正确**：所有组件调用同一个 `use[Entity]Data()`，共享同一个 `data`、`pagination` 等响应式引用
+2. ❌ **错误**：每个组件创建自己的数据副本，导致数据不同步
+3. ✅ **正确**：在弹窗中修改数据后，主视图的表格会自动更新（因为共享同一个 `data` 引用）
+4. ❌ **错误**：需要手动调用 `list()` 才能看到更新（说明数据没有共享）
+
+## 2. API 文件注释规范
+
+所有 API 文件（如 `src/httpapis/*.ts`）必须遵循以下注释规范：
+
+## 3. 模型与分页类型规范
+
+所有与后端实体及分页数据相关的类型，必须放在 `src/model/` 目录下，并**按实体拆分文件**。禁止再把不同实体的类型集中写在单个大文件里。
+
+### 3.1 基础模型文件
+
+- `src/model/base.ts`
+  - `ModelFields`：公共字段（`id`, `createdAt`, `updatedAt`, `deletedAt`）
+  - `PageMeta`：分页元信息（`total`, `current`, `size`）
+  - `PaginatedResult<T>`：统一分页结构 `{ items: T[]; page: PageMeta }`
+
+### 3.2 按实体拆分的模型文件
+
+| 实体 | 文件 | 必需内容 |
+| --- | --- | --- |
+| 管理员 | `src/model/admin.ts` | `interface Admin extends ModelFields { ... }` + `type AdminList = PaginatedResult<Admin>` |
+| 设备（OrangePi） | `src/model/device.ts` | `interface Device extends ModelFields { ... }` + `type DeviceList = PaginatedResult<Device>` + `interface DeviceStats` |
+| 建筑 | `src/model/building.ts` | `interface Building extends ModelFields { ... }` + `type BuildingList = PaginatedResult<Building>` |
+| 公网配置 | `src/model/publicNet.ts` | `interface PublicNetConfig extends ModelFields { external_ip: string }` |
+| OrangePi 远程管理 | `src/model/orangepi.ts` | `OrangePiRemotePortsResult`、`OrangePiRemoteInfo`、`OrangePiRemoteHealth` |
+
+> 如需新增实体：直接在 `src/model/[entity].ts` 创建文件并导出该实体、其分页类型、统计类型等。
+
+### 3.3 API 层使用规范
+
+- API 文件只从对应实体模型中引入类型，例如：
+  - `import type { Admin, AdminList } from '@/model/admin'`
+  - `import type { Device, DeviceStats } from '@/model/device'`
+  - `import type { Building } from '@/model/building'`
+- 所有分页接口返回类型统一为 `ApiResponse<[Entity]List>`；当接口既能返回分页又能返回单条记录时，写成 `ApiResponse<[Entity]List | [Entity]>`，方便 `use[Entity]Data` 统一处理。
+
+### 3.4 前端视图/逻辑使用规范
+
+- `use[Entity].ts`、页面组件、弹窗组件只从实体模型文件引入类型，不再引用 `managementModels.ts`。
+- `use[Entity].ts` 内部维护自己的 `pagination` 响应式对象，值来源于后端返回的 `PaginatedResult.page`。
+- 当新增或修改实体字段时，先更新对应的模型文件，再在页面/弹窗/components 中引用。
+
+### 3.5 兼容层
+
+- `src/model/managementModels.ts` 现在仅作为**聚合导出**，逐步废弃。内容为：
+
+  ```ts
+  export type { ModelFields } from './base'
+  export * from './admin'
+  export * from './device'
+  export * from './building'
+  export * from './publicNet'
+  export * from './orangepi'
+  ```
+
+- 新代码必须直接从实体模型文件导入类型；`managementModels.ts` 仅用于平滑迁移旧代码。
+
+### 2.1 文件头部方法索引
+
+在文件最开头（import 语句之后，类型定义之前），必须添加一个带数字序号的方法索引列表，列出该文件中所有的 API 方法。
+
+**格式：**
+```typescript
+// 方法索引列表
+// 1. func AdminApi.list - 获取管理员列表（支持分页和按ID查询）
+// 2. func AdminApi.create - 创建管理员
+// 3. func AdminApi.update - 更新管理员信息
+// 4. func AdminApi.remove - 删除管理员
+// 5. func DeviceApi.list - 获取设备列表
+// 6. func DeviceApi.create - 创建设备
+// ...
+```
+
+### 2.2 方法注释规范
+
+每个 API 方法都必须有带序号的注释，格式为：`// [序号]. func [ApiName].[methodName] - [功能描述]`
+
+**格式：**
+```typescript
+export const AdminApi = {
+  // 1. func AdminApi.list - 获取管理员列表（支持分页和按ID查询）
+  // GET /api/admin?pageNum=1&pageSize=20&id=1
+  list(params?: { pageNum?: number; pageSize?: number; id?: number }) {
+    return http.get<ApiResponse<PaginatedResponse<Admin> | Admin>>('/admin', { params })
+  },
+  
+  // 2. func AdminApi.create - 创建管理员
+  // POST /api/admin
+  create(data: { username: string; password: string }) {
+    return http.post<ApiResponse<Admin>>('/admin', data)
+  },
+  
+  // 3. func AdminApi.update - 更新管理员信息
+  // PUT /api/admin
+  update(data: { id: number; username?: string; password?: string }) {
+    return http.put<ApiResponse<Admin>>('/admin', data)
+  },
+  
+  // 4. func AdminApi.remove - 删除管理员
+  // DELETE /api/admin
+  remove(data: { id: number }) {
+    return http.delete<ApiResponse<{ deleted: boolean }>>('/admin', { data })
+  },
+}
+```
+
+### 2.3 完整示例
+
+```typescript
+import { http } from './index'
+import type { Admin, Device } from '../model/managementModels'
+
+// 方法索引列表
+// 1. func AdminApi.list - 获取管理员列表（支持分页和按ID查询）
+// 2. func AdminApi.create - 创建管理员
+// 3. func AdminApi.update - 更新管理员信息
+// 4. func AdminApi.remove - 删除管理员
+// 5. func DeviceApi.list - 获取设备列表
+// 6. func DeviceApi.create - 创建设备
+
+// 通用响应类型
+export interface ApiResponse<T = any> {
+  success: boolean
+  data: T
+}
+
+// 管理员API
+export const AdminApi = {
+  // 1. func AdminApi.list - 获取管理员列表（支持分页和按ID查询）
+  // GET /api/admin?pageNum=1&pageSize=20&id=1
+  list(params?: { pageNum?: number; pageSize?: number; id?: number }) {
+    return http.get<ApiResponse<PaginatedResponse<Admin> | Admin>>('/admin', { params })
+  },
+  
+  // 2. func AdminApi.create - 创建管理员
+  // POST /api/admin
+  create(data: { username: string; password: string }) {
+    return http.post<ApiResponse<Admin>>('/admin', data)
+  },
+  
+  // 3. func AdminApi.update - 更新管理员信息
+  // PUT /api/admin
+  update(data: { id: number; username?: string; password?: string }) {
+    return http.put<ApiResponse<Admin>>('/admin', data)
+  },
+  
+  // 4. func AdminApi.remove - 删除管理员
+  // DELETE /api/admin
+  remove(data: { id: number }) {
+    return http.delete<ApiResponse<{ deleted: boolean }>>('/admin', { data })
+  },
+}
+```
+
+### 注意事项
+
+1. **序号必须连续**：文件头部索引列表的序号必须与方法注释中的序号一一对应
+2. **序号从 1 开始**：每个 API 对象的方法序号从 1 开始，不同 API 对象之间序号可以重复（因为它们是独立的命名空间）
+3. **功能描述要清晰**：注释中的功能描述应该简洁明了，说明方法的主要用途
+4. **保持同步**：当添加、删除或修改方法时，必须同步更新文件头部的方法索引列表
