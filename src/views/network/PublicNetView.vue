@@ -1,14 +1,29 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { message } from "ant-design-vue";
+import { PublicNetApi } from "@/httpapis/api";
 
 const formState = ref({
-  external_ip: "120.33.41.90",
+  external_ip: "",
 });
 
-const onSubmit = () => {
-  // TODO: 調用 PublicNetApi
-  // eslint-disable-next-line no-console
-  console.log("提交公網配置", formState.value);
+const isSubmitting = ref(false);
+
+const onSubmit = async () => {
+  if (isSubmitting.value) return;
+
+  isSubmitting.value = true;
+  try {
+    await PublicNetApi.update({
+      external_ip: formState.value.external_ip.trim(),
+    });
+    message.success("公網配置已更新");
+  } catch (error: any) {
+    const backendError = error?.response?.data?.error;
+    message.error(backendError || "更新失敗，請稍後再試");
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 </script>
 
@@ -42,6 +57,7 @@ const onSubmit = () => {
       <a-button
         type="primary"
         html-type="submit"
+        :loading="isSubmitting"
       >保存配置</a-button>
     </a-form>
   </a-card>
