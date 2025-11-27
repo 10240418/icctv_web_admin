@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, computed } from "vue";
+import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { appRoutes } from "./router/routes";
 import {
@@ -9,23 +9,8 @@ import {
   HomeOutlined,
   ApiOutlined,
   SettingOutlined,
+  VideoCameraOutlined,
 } from "@ant-design/icons-vue";
-
-const isDark = ref(window.matchMedia("(prefers-color-scheme: dark)").matches);
-const applyTheme = (dark: boolean) => {
-  const root = document.documentElement;
-  if (dark) {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
-};
-
-onMounted(() => {
-  applyTheme(isDark.value);
-});
-
-watch(isDark, (value) => applyTheme(value));
 
 const route = useRoute();
 const showLayout = computed(() => route.meta?.layout !== false);
@@ -37,6 +22,7 @@ const iconMap = {
   home: HomeOutlined,
   api: ApiOutlined,
   setting: SettingOutlined,
+  "video-camera": VideoCameraOutlined,
 };
 
 const navigationRoutes = computed(() =>
@@ -61,23 +47,17 @@ const navigationRoutes = computed(() =>
           <p class="text-xl font-semibold">後台管理</p>
           <p class="text-xs text-muted">Backend Management</p>
         </div>
-        <button
-          class="rounded-full border border-border px-3 py-1 text-sm text-muted hover:bg-muted/40"
-          @click="isDark = !isDark"
-        >
-          {{ isDark ? '☀' : '🌙' }}
-        </button>
       </div>
       <nav class="mt-10 flex flex-1 flex-col gap-2">
         <RouterLink
           v-for="nav in navigationRoutes"
           :key="nav.path"
           :to="nav.path"
-          class="group flex flex-col gap-1 rounded-xl px-4 py-3 text-base font-medium transition duration-200"
+          class="group flex flex-col gap-1 rounded-xl px-4 py-3 text-base font-medium transition-colors duration-200"
           :class="
             route.path.startsWith(nav.path)
-              ? 'bg-accent/15 text-foreground shadow-sm ring-1 ring-accent/30'
-              : 'text-muted hover:bg-muted/60 hover:text-foreground'
+              ? 'bg-[#EAEBEF] text-foreground'
+              : 'text-[#717182] hover:bg-[#F0F0F0]'
           "
         >
           <div class="flex items-center gap-3">

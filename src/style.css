@@ -2,22 +2,13 @@
 
 @layer base {
   :root {
-    --color-surface: 248 250 252;
+    --color-surface: 255 255 255;
     --color-muted: 226 232 240;
     --color-foreground: 15 23 42;
     --color-accent: 59 130 246;
-    --color-border: 226 232 240;
+    --color-border: 229 229 229;
     font-family: 'Inter', 'PingFang SC', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color-scheme: light;
-  }
-
-  .dark {
-    --color-surface: 15 23 42;
-    --color-muted: 51 65 85;
-    --color-foreground: 248 250 252;
-    --color-accent: 96 165 250;
-    --color-border: 51 65 85;
-    color-scheme: dark;
   }
 
   * {

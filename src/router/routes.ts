@@ -24,6 +24,12 @@ export const appRoutes: RouteRecordRaw[] = [
     component: () => import('../views/building/BuildingView.vue'),
   },
   {
+    path: '/nvr',
+    name: 'Nvr',
+    meta: { title: 'NVR 管理', subtitle: 'NVR Management', icon: 'video-camera' },
+    component: () => import('../views/nvr/NvrView.vue'),
+  },
+  {
     path: '/publicnet',
     name: 'PublicNet',
     meta: { title: '公網配置', subtitle: 'Public Network Config', icon: 'api' },

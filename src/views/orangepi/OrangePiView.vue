@@ -1,53 +1,121 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
+import { Modal } from "ant-design-vue";
+import type { Device } from "@/model/device";
+import { useOrangePiData } from "./useOrangePi";
+import OrangePiEditDialog from "./components/OrangePiEditDialog.vue";
 
-interface OrangePiRow {
-  id: number;
-  name: string;
-  base: string;
-  sshRemotePort: number;
-  isActive: boolean;
-}
+const {
+  data,
+  columns,
+  isLoading,
+  searchKeyword,
+  setSearchKeyword,
+  list,
+  fetch,
+  remove,
+} = useOrangePiData();
 
-const columns = [
-  { title: "名稱", titleEn: "Name", dataIndex: "name", key: "name" },
-  { title: "所屬園區", titleEn: "Base", dataIndex: "base", key: "base" },
-  {
-    title: "SSH 遠程端口",
-    titleEn: "SSH Remote Port",
-    dataIndex: "sshRemotePort",
-    key: "sshRemotePort",
-  },
-  {
-    title: "狀態",
-    titleEn: "Status",
-    dataIndex: "isActive",
-    key: "isActive",
-    customRender: ({ value }: { value: boolean }) => (value ? "啟用" : "停用"),
-  },
-];
+const isEditDialogVisible = ref(false);
+const editDialogMode = ref<"create" | "edit">("create");
+const selectedDeviceData = ref<Device | undefined>(undefined);
 
-const data = ref<OrangePiRow[]>([
-  { id: 1, name: "OP-01", base: "HQ-1", sshRemotePort: 6001, isActive: true },
-  { id: 2, name: "OP-02", base: "HQ-2", sshRemotePort: 6002, isActive: false },
-]);
+const handleSearch = (value?: string) => {
+  setSearchKeyword(value?.trim() || "");
+  list(value?.trim() || undefined);
+};
+
+const showAddDialog = () => {
+  editDialogMode.value = "create";
+  selectedDeviceData.value = undefined;
+  isEditDialogVisible.value = true;
+};
+
+const editDevice = async (device: Device) => {
+  editDialogMode.value = "edit";
+  selectedDeviceData.value = await fetch(device.id);
+  isEditDialogVisible.value = true;
+};
+
+const deleteDevice = async (id: number) => {
+  await remove(id);
+};
+
+const confirmDelete = (id: number) => {
+  Modal.confirm({
+    title: "確定要刪除這個設備嗎？",
+    onOk: () => deleteDevice(id),
+  });
+};
+
+const handleCreated = () => {
+  list(searchKeyword.value || undefined);
+};
+
+const handleUpdated = () => {
+  list(searchKeyword.value || undefined);
+};
+
+onMounted(() => {
+  list();
+});
 </script>
 
 <template>
   <div class="space-y-4">
-    <div class="flex flex-wrap items-center gap-3">
-      <a-input-search
-        placeholder="搜尋設備名稱"
-        class="w-64"
-      />
-      <a-button type="primary">創建設備</a-button>
-      <a-button>批量導入</a-button>
+    <div class="flex justify-between">
+      <div>
+        <h2 class="text-2xl font-semibold text-foreground">OrangePi 設備</h2>
+        <p class="text-xs text-muted">OrangePi Devices</p>
+      </div>
     </div>
+
+    <OrangePiEditDialog
+      :visible="isEditDialogVisible"
+      :mode="editDialogMode"
+      :device-data="selectedDeviceData"
+      @update:visible="isEditDialogVisible = $event"
+      @created="handleCreated"
+      @updated="handleUpdated"
+    />
+
+    <div class="flex items-center gap-3">
+      <a-input-search
+        v-model:value="searchKeyword"
+        placeholder="輸入 iSmart ID 搜尋"
+        class="flex-1 min-w-0"
+        @search="handleSearch"
+      />
+      <a-button
+        type="primary"
+        @click="showAddDialog"
+      >創建設備</a-button>
+    </div>
+
     <a-table
       :columns="columns"
       :data-source="data"
+      :loading="isLoading"
       row-key="id"
-    />
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'is_active'">
+          <a-tag :color="record.is_active ? 'green' : 'red'">
+            {{ record.is_active ? '啟用' : '停用' }}
+          </a-tag>
+        </template>
+        <template v-else-if="column.key === 'action'">
+          <span>
+            <a @click="editDevice(record)">編輯</a>
+            <a-divider type="vertical" />
+            <a
+              style="color: lightcoral;"
+              @click="confirmDelete(record.id)"
+            >刪除</a>
+          </span>
+        </template>
+      </template>
+    </a-table>
   </div>
 </template>
 

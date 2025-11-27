@@ -1,36 +1,36 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { Modal } from "ant-design-vue";
-import { useBuildingData } from "./useBuilding";
-import type { Building } from "@/model/building";
-import BuildingEditDialog from "./components/BuildingEditDialog.vue";
+import { useNvrData } from "./useNvr";
+import type { Nvr } from "@/model/nvr";
+import NvrEditDialog from "./components/NvrEditDialog.vue";
 
-const { data, columns, isLoading, list, remove, fetch } = useBuildingData();
+const { data, columns, isLoading, list, remove, fetch } = useNvrData();
 
 const isEditDialogVisible = ref(false);
 const editDialogMode = ref<"create" | "edit">("create");
-const selectedBuildingData = ref<Building | undefined>(undefined);
+const selectedNvrData = ref<Nvr | undefined>(undefined);
 
-const showAddBuildingDialog = () => {
+const showAddNvrDialog = () => {
   editDialogMode.value = "create";
-  selectedBuildingData.value = undefined;
+  selectedNvrData.value = undefined;
   isEditDialogVisible.value = true;
 };
 
-const editBuilding = async (building: Building) => {
+const editNvr = async (nvr: Nvr) => {
   editDialogMode.value = "edit";
-  selectedBuildingData.value = await fetch(building.id);
+  selectedNvrData.value = await fetch(nvr.id);
   isEditDialogVisible.value = true;
 };
 
-const deleteBuilding = async (id: number) => {
+const deleteNvr = async (id: number) => {
   await remove(id);
 };
 
-const confirmDeleteBuilding = (id: number) => {
+const confirmDeleteNvr = (id: number) => {
   Modal.confirm({
-    title: "确定要删除这个建筑吗？",
-    onOk: () => deleteBuilding(id),
+    title: "確定要刪除這個 NVR 嗎？",
+    onOk: () => deleteNvr(id),
   });
 };
 
@@ -49,10 +49,10 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
-    <BuildingEditDialog
+    <NvrEditDialog
       :visible="isEditDialogVisible"
       :mode="editDialogMode"
-      :building-data="selectedBuildingData"
+      :nvr-data="selectedNvrData"
       @update:visible="isEditDialogVisible = $event"
       @created="handleCreated"
       @updated="handleUpdated"
@@ -60,13 +60,13 @@ onMounted(() => {
 
     <div class="flex justify-between">
       <div>
-        <h2 class="text-2xl font-semibold text-foreground">大廈資訊</h2>
-        <p class="text-xs text-muted">Building Information</p>
+        <h2 class="text-2xl font-semibold text-foreground">NVR 管理</h2>
+        <p class="text-xs text-muted">NVR Management</p>
       </div>
       <a-button
         type="primary"
-        @click="showAddBuildingDialog"
-      >新增大廈</a-button>
+        @click="showAddNvrDialog"
+      >新增 NVR</a-button>
     </div>
 
     <a-table
@@ -79,16 +79,17 @@ onMounted(() => {
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'action'">
           <span>
-            <a @click="editBuilding(record)">编辑</a>
+            <a @click="editNvr(record)">編輯</a>
             <a-divider type="vertical" />
             <a
               style="color: lightcoral;"
-              @click="confirmDeleteBuilding(record.id)"
-            >删除</a>
+              @click="confirmDeleteNvr(record.id)"
+            >刪除</a>
           </span>
         </template>
       </template>
     </a-table>
   </div>
 </template>
+
 

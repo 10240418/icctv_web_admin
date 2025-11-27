@@ -1,30 +1,43 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { message } from "ant-design-vue";
+import { PublicNetApi } from "@/httpapis/api";
 
 const formState = ref({
-  external_ip: "120.33.41.90",
+  external_ip: "",
 });
 
-const onSubmit = () => {
-  // TODO: 調用 PublicNetApi
-  // eslint-disable-next-line no-console
-  console.log("提交公網配置", formState.value);
+const isSubmitting = ref(false);
+
+const onSubmit = async () => {
+  if (isSubmitting.value) return;
+
+  isSubmitting.value = true;
+  try {
+    await PublicNetApi.update({
+      external_ip: formState.value.external_ip.trim(),
+    });
+    message.success("公網配置已更新");
+  } catch (error: any) {
+    const backendError = error?.response?.data?.error;
+    message.error(backendError || "更新失敗，請稍後再試");
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 </script>
 
 <template>
-  <a-card>
-    <template #title>
-      <div>
-        <p class="font-medium">公網配置</p>
-        <p class="text-xs text-muted">Public Network Config</p>
-      </div>
-    </template>
-    <p class="text-sm text-muted">
-      `/api/publicnet/config` 用於統一管理外部訪問 IP。提交後後端將寫入 OrangePi 節點配置文件。
-    </p>
+  <a-card class="w-full max-w-xl mx-auto text-center">
+    <div class="space-y-2">
+      <p class="text-lg font-semibold text-foreground">公網配置</p>
+      <p class="text-xs text-muted">Public Network Config</p>
+      <p class="text-sm text-muted">
+        `/api/publicnet/config` 用於統一管理外部訪問 IP。提交後後端將寫入 OrangePi 節點配置文件。
+      </p>
+    </div>
     <a-form
-      class="mt-6 max-w-xl space-y-4"
+      class="mt-6 space-y-4 max-w-md mx-auto text-left"
       layout="vertical"
       :model="formState"
       @finish="onSubmit"
@@ -39,10 +52,13 @@ const onSubmit = () => {
           placeholder="例如 120.33.41.90"
         />
       </a-form-item>
-      <a-button
-        type="primary"
-        html-type="submit"
-      >保存配置</a-button>
+      <div class="flex justify-center">
+        <a-button
+          type="primary"
+          html-type="submit"
+          :loading="isSubmitting"
+        >保存配置</a-button>
+      </div>
     </a-form>
   </a-card>
 </template>
