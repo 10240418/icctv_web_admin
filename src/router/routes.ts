@@ -12,6 +12,12 @@ export const appRoutes: RouteRecordRaw[] = [
     component: () => import('../views/dashboard/DashboardView.vue'),
   },
   {
+    path: '/admin',
+    name: 'Admin',
+    meta: { title: '賬戶管理', subtitle: 'Account Management', icon: 'team' },
+    component: () => import('../views/admin/AdminerView.vue'),
+  },
+  {
     path: '/orangepi',
     name: 'OrangePi',
     meta: { title: 'OrangePi 設備', subtitle: 'OrangePi Devices', icon: 'app' },
