@@ -28,18 +28,16 @@ const onSubmit = async () => {
 </script>
 
 <template>
-  <a-card>
-    <template #title>
-      <div>
-        <p class="font-medium">公網配置</p>
-        <p class="text-xs text-muted">Public Network Config</p>
-      </div>
-    </template>
-    <p class="text-sm text-muted">
-      `/api/publicnet/config` 用於統一管理外部訪問 IP。提交後後端將寫入 OrangePi 節點配置文件。
-    </p>
+  <a-card class="w-full max-w-xl mx-auto text-center">
+    <div class="space-y-2">
+      <p class="text-lg font-semibold text-foreground">公網配置</p>
+      <p class="text-xs text-muted">Public Network Config</p>
+      <p class="text-sm text-muted">
+        `/api/publicnet/config` 用於統一管理外部訪問 IP。提交後後端將寫入 OrangePi 節點配置文件。
+      </p>
+    </div>
     <a-form
-      class="mt-6 max-w-xl space-y-4"
+      class="mt-6 space-y-4 max-w-md mx-auto text-left"
       layout="vertical"
       :model="formState"
       @finish="onSubmit"
@@ -54,11 +52,13 @@ const onSubmit = async () => {
           placeholder="例如 120.33.41.90"
         />
       </a-form-item>
-      <a-button
-        type="primary"
-        html-type="submit"
-        :loading="isSubmitting"
-      >保存配置</a-button>
+      <div class="flex justify-center">
+        <a-button
+          type="primary"
+          html-type="submit"
+          :loading="isSubmitting"
+        >保存配置</a-button>
+      </div>
     </a-form>
   </a-card>
 </template>

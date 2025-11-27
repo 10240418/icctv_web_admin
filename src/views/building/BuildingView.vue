@@ -62,7 +62,6 @@ onMounted(() => {
       <div>
         <h2 class="text-2xl font-semibold text-foreground">大廈資訊</h2>
         <p class="text-xs text-muted">Building Information</p>
-        <p class="text-sm text-muted">對應 /api/building* 接口</p>
       </div>
       <a-button
         type="primary"

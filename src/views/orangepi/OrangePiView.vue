@@ -13,8 +13,6 @@ const {
   setSearchKeyword,
   list,
   fetch,
-  create,
-  update,
   remove,
 } = useOrangePiData();
 
@@ -65,6 +63,13 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
+    <div class="flex justify-between">
+      <div>
+        <h2 class="text-2xl font-semibold text-foreground">OrangePi 設備</h2>
+        <p class="text-xs text-muted">OrangePi Devices</p>
+      </div>
+    </div>
+
     <OrangePiEditDialog
       :visible="isEditDialogVisible"
       :mode="editDialogMode"
@@ -74,11 +79,11 @@ onMounted(() => {
       @updated="handleUpdated"
     />
 
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-3">
       <a-input-search
         v-model:value="searchKeyword"
         placeholder="輸入 iSmart ID 搜尋"
-        class="w-64"
+        class="flex-1 min-w-0"
         @search="handleSearch"
       />
       <a-button

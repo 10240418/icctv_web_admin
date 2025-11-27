@@ -62,7 +62,6 @@ onMounted(() => {
       <div>
         <h2 class="text-2xl font-semibold text-foreground">NVR 管理</h2>
         <p class="text-xs text-muted">NVR Management</p>
-        <p class="text-sm text-muted">對應 /api/nvr* 接口</p>
       </div>
       <a-button
         type="primary"
