@@ -4,17 +4,25 @@ import { Modal } from "ant-design-vue";
 import { useBuildingData } from "./useBuilding";
 import type { Building } from "@/model/building";
 import BuildingEditDialog from "./components/BuildingEditDialog.vue";
+import BuildingDetailDialog from "./components/BuildingDetailDialog.vue";
 
 const { data, columns, isLoading, list, remove, fetch } = useBuildingData();
 
 const isEditDialogVisible = ref(false);
 const editDialogMode = ref<"create" | "edit">("create");
 const selectedBuildingData = ref<Building | undefined>(undefined);
+const isDetailDialogVisible = ref(false);
+const detailBuildingData = ref<Building | undefined>(undefined);
 
 const showAddBuildingDialog = () => {
   editDialogMode.value = "create";
   selectedBuildingData.value = undefined;
   isEditDialogVisible.value = true;
+};
+
+const showBuildingDetail = (building: Building) => {
+  detailBuildingData.value = building;
+  isDetailDialogVisible.value = true;
 };
 
 const editBuilding = async (building: Building) => {
@@ -57,6 +65,11 @@ onMounted(() => {
       @created="handleCreated"
       @updated="handleUpdated"
     />
+    <BuildingDetailDialog
+      :visible="isDetailDialogVisible"
+      :building-data="detailBuildingData"
+      @update:visible="isDetailDialogVisible = $event"
+    />
 
     <div class="flex justify-between">
       <div>
@@ -79,6 +92,8 @@ onMounted(() => {
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'action'">
           <span>
+            <a @click="showBuildingDetail(record)">详情</a>
+            <a-divider type="vertical" />
             <a @click="editBuilding(record)">编辑</a>
             <a-divider type="vertical" />
             <a
