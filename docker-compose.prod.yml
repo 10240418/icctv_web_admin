@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  icctv-web-admin:
+    image: icctv_web_admin-icctv-web-admin:latest
+    container_name: icctv-web-admin
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - icctv-network
+
+networks:
+  icctv-network:
+    driver: bridge

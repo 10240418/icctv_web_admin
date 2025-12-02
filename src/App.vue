@@ -27,7 +27,11 @@ const iconMap = {
 
 const navigationRoutes = computed(() =>
   appRoutes.filter(
-    (r) => !r.redirect && r.meta?.layout !== false && r.path !== "/"
+    (r) =>
+      !r.redirect &&
+      r.meta?.layout !== false &&
+      r.path !== "/" &&
+      !r.meta?.hidden
   )
 );
 </script>
@@ -39,11 +43,10 @@ const navigationRoutes = computed(() =>
     class="flex min-h-screen bg-surface text-foreground transition-colors duration-300"
   >
     <aside
-      class="hidden w-68 flex-col border-r border-border bg-surface px-5 py-6 md:flex"
+      class="hidden w-68 flex-col border-r border-gray-300 bg-surface px-5 py-6 md:flex"
     >
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-sm uppercase tracking-[0.3em] text-muted">Icctv</p>
           <p class="text-xl font-semibold">後台管理</p>
           <p class="text-xs text-muted">Backend Management</p>
         </div>

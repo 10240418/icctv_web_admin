@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onActivated } from "vue";
 import { Modal } from "ant-design-vue";
 import { useBuildingData } from "./useBuilding";
 import type { Building } from "@/model/building";
 import BuildingEditDialog from "./components/BuildingEditDialog.vue";
 import BuildingDetailDialog from "./components/BuildingDetailDialog.vue";
+import { formatDate } from "@/utils/dateFormat";
 
-const { data, columns, isLoading, list, remove, fetch } = useBuildingData();
+const { data, columns, isLoading, searchKeyword, list, remove, fetch, search } =
+  useBuildingData();
 
 const isEditDialogVisible = ref(false);
 const editDialogMode = ref<"create" | "edit">("create");
@@ -37,7 +39,7 @@ const deleteBuilding = async (id: number) => {
 
 const confirmDeleteBuilding = (id: number) => {
   Modal.confirm({
-    title: "确定要删除这个建筑吗？",
+    title: "確定要刪除這個建築嗎？",
     onOk: () => deleteBuilding(id),
   });
 };
@@ -50,7 +52,15 @@ const handleUpdated = () => {
   list();
 };
 
+const handleSearch = (value?: string) => {
+  search(value?.trim() || "");
+};
+
 onMounted(() => {
+  list();
+});
+
+onActivated(() => {
   list();
 });
 </script>
@@ -71,11 +81,22 @@ onMounted(() => {
       @update:visible="isDetailDialogVisible = $event"
     />
 
-    <div class="flex justify-between">
-      <div>
+    <div
+      class="flex items-center justify-between border-b border-gray-300 pb-4">
+      <div class="flex items-baseline gap-3">
         <h2 class="text-2xl font-semibold text-foreground">大廈資訊</h2>
-        <p class="text-xs text-muted">Building Information</p>
+        <p class="text-sm text-muted">Building Information</p>
       </div>
+    </div>
+
+    <div class="flex w-full justify-between items-center gap-3">
+      <a-input-search
+        v-model:value="searchKeyword"
+        placeholder="搜尋大廈名稱或 iSmart ID"
+        style="width: 250px"
+        @search="handleSearch"
+        @pressEnter="handleSearch(searchKeyword)"
+      />
       <a-button
         type="primary"
         @click="showAddBuildingDialog"
@@ -86,20 +107,28 @@ onMounted(() => {
       :data-source="data"
       :columns="columns"
       :loading="isLoading"
-      :pagination="false"
+      :pagination="{
+        position: ['bottomRight'],
+        hideOnSinglePage: false,
+        showSizeChanger: true,
+        defaultPageSize: 10,
+      }"
       row-key="id"
     >
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'action'">
+        <template v-if="column.key === 'updatedAt'">
+          {{ formatDate(record.updatedAt) }}
+        </template>
+        <template v-else-if="column.key === 'action'">
           <span>
-            <a @click="showBuildingDetail(record)">详情</a>
+            <a @click="showBuildingDetail(record)">詳情</a>
             <a-divider type="vertical" />
-            <a @click="editBuilding(record)">编辑</a>
+            <a @click="editBuilding(record)">編輯</a>
             <a-divider type="vertical" />
             <a
               style="color: lightcoral;"
               @click="confirmDeleteBuilding(record.id)"
-            >删除</a>
+            >刪除</a>
           </span>
         </template>
       </template>

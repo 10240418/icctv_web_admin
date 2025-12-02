@@ -111,7 +111,7 @@ const handleOk = () => {
             emit("updated");
           })
           .catch(() => {
-            // 错误已在 useDevice 中处理
+            // 錯誤已在 useDevice 中處理
           })
           .finally(() => {
             isLoading.value = false;
@@ -130,7 +130,7 @@ const handleOk = () => {
             emit("created");
           })
           .catch(() => {
-            // 错误已在 useDevice 中处理
+            // 錯誤已在 useDevice 中處理
           })
           .finally(() => {
             isLoading.value = false;
@@ -151,7 +151,7 @@ const handleCancel = () => {
 <template>
   <a-modal
     :open="props.visible"
-    :title="props.mode === 'create' ? '新增设备' : '编辑设备'"
+    :title="props.mode === 'create' ? '新增設備' : '編輯設備'"
     :mask-closable="false"
     :confirm-loading="isLoading"
     @ok="handleOk"
@@ -165,23 +165,23 @@ const handleCancel = () => {
       <a-form-item
         label="iSmart ID"
         name="ismartid"
-        :rules="[{ required: true, message: '请输入iSmart ID!' }]"
+        :rules="[{ required: true, message: '請輸入iSmart ID!' }]"
       >
         <a-input v-model:value="formData.ismartid" />
       </a-form-item>
 
       <a-form-item
-        label="设备名称"
+        label="設備名稱"
         name="name"
-        :rules="[{ required: true, message: '请输入设备名称!' }]"
+        :rules="[{ required: true, message: '請輸入設備名稱!' }]"
       >
         <a-input v-model:value="formData.name" />
       </a-form-item>
 
       <a-form-item
-        label="认证服务端口"
+        label="認證服務端口"
         name="icctv_auth_service_remote_port"
-        :rules="[{ required: true, message: '请输入认证服务端口!' }, { type: 'number', min: 1, max: 65535, message: '端口范围1-65535' }]"
+        :rules="[{ required: true, message: '請輸入認證服務端口!' }, { type: 'number', min: 1, max: 65535, message: '端口範圍1-65535' }]"
       >
         <a-input-number
           v-model:value="formData.icctv_auth_service_remote_port"
@@ -194,7 +194,7 @@ const handleCancel = () => {
       <a-form-item
         label="SSH端口"
         name="ssh_remote_port"
-        :rules="[{ required: true, message: '请输入SSH端口!' }, { type: 'number', min: 1, max: 65535, message: '端口范围1-65535' }]"
+        :rules="[{ required: true, message: '請輸入SSH端口!' }, { type: 'number', min: 1, max: 65535, message: '端口範圍1-65535' }]"
       >
         <a-input-number
           v-model:value="formData.ssh_remote_port"

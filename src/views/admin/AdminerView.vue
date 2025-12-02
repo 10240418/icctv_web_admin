@@ -1,12 +1,22 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onActivated } from "vue";
 import { Modal } from "ant-design-vue";
 import { useAdminData } from "./useAdmin";
 import type { Admin } from "@/model/admin";
 import AdminEditDialog from "./components/AdminEditDialog.vue";
+import { formatDate } from "@/utils/dateFormat";
 
-const { data, columns, pagination, isLoading, list, remove, fetch } =
-  useAdminData();
+const {
+  data,
+  columns,
+  pagination,
+  isLoading,
+  searchKeyword,
+  list,
+  remove,
+  fetch,
+  search,
+} = useAdminData();
 
 const isEditDialogVisible = ref(false);
 const editDialogMode = ref<"create" | "edit">("create");
@@ -30,7 +40,7 @@ const deleteAdmin = async (id: number) => {
 
 const confirmDeleteAdmin = (id: number) => {
   Modal.confirm({
-    title: "确定要删除这个管理员吗？",
+    title: "確定要刪除這個管理員嗎？",
     onOk: () => deleteAdmin(id),
   });
 };
@@ -47,8 +57,16 @@ const handleUpdated = () => {
   list();
 };
 
+const handleSearch = (value?: string) => {
+  search(value?.trim() || "");
+};
+
 onMounted(() => {
   list();
+});
+
+onActivated(() => {
+  list(searchKeyword.value || undefined);
 });
 </script>
 
@@ -63,12 +81,22 @@ onMounted(() => {
       @updated="handleUpdated"
     />
 
-    <div class="flex justify-between">
-      <div>
+    <div
+      class="flex items-center justify-between border-b border-gray-300 pb-4">
+      <div class="flex items-baseline gap-3">
         <h2 class="text-2xl font-semibold text-foreground">管理員管理</h2>
-        <p class="text-xs text-muted">Administrator Management</p>
-        <p class="text-sm text-muted">與後端 /api/admin* 接口保持一致</p>
+        <p class="text-sm text-muted">Administrator Management</p>
       </div>
+    </div>
+
+    <div class="flex w-full justify-between items-center gap-3">
+      <a-input-search
+        v-model:value="searchKeyword"
+        placeholder="搜尋管理員名稱"
+        style="width: 250px"
+        @search="handleSearch"
+        @pressEnter="handleSearch(searchKeyword)"
+      />
       <a-button
         type="primary"
         @click="showAddAdminDialog"
@@ -79,31 +107,34 @@ onMounted(() => {
       :data-source="data"
       :columns="columns"
       :loading="isLoading"
-      :pagination="false"
+      :pagination="{
+        position: ['bottomRight'],
+        hideOnSinglePage: false,
+        showSizeChanger: true,
+        current: pagination.currentPage,
+        pageSize: pagination.pageSize,
+        total: pagination.total,
+        onChange: onPageChange,
+        onShowSizeChange: onPageChange,
+      }"
       row-key="id"
     >
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'action'">
+        <template v-if="column.key === 'updatedAt'">
+          {{ formatDate(record.updatedAt) }}
+        </template>
+        <template v-else-if="column.key === 'action'">
           <span>
-            <a @click="editAdmin(record)">编辑</a>
+            <a @click="editAdmin(record)">編輯</a>
             <a-divider type="vertical" />
             <a
               style="color: lightcoral;"
               @click="confirmDeleteAdmin(record.id)"
-            >删除</a>
+            >刪除</a>
           </span>
         </template>
       </template>
     </a-table>
-
-    <a-pagination
-      v-model:current="pagination.currentPage"
-      v-model:pageSize="pagination.pageSize"
-      :total="pagination.total"
-      show-size-changer
-      @change="onPageChange"
-      @showSizeChange="onPageChange"
-    />
   </div>
 </template>
 

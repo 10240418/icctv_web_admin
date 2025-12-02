@@ -3,17 +3,18 @@ import { message } from 'ant-design-vue';
 import { AdminApi } from '@/httpapis/api';
 import type { Admin, AdminList } from '@/model/admin';
 
-// 单例状态：如果系统中已有数据体就使用该数据体，否则创建新的
+// 單例狀態：如果系統中已有數據體就使用該數據體，否則創建新的
 type AdminState = {
   isLoading: Ref<boolean>;
   data: Ref<Admin[]>;
   pagination: Ref<{ currentPage: number; pageSize: number; total: number }>;
+  searchKeyword: Ref<string>;
 };
 
 let state: AdminState | null = null;
 
 export const useAdminData = () => {
-  // 如果系统中已有数据体，直接返回；否则创建新的数据体
+  // 如果系統中已有數據體，直接返回；否則創建新的數據體
   if (!state) {
     state = {
       isLoading: ref(false),
@@ -23,6 +24,7 @@ export const useAdminData = () => {
         pageSize: 20,
         total: 0,
       }),
+      searchKeyword: ref(''),
     };
   }
 
@@ -36,48 +38,49 @@ export const useAdminData = () => {
       width: 80,
     },
     {
-      title: '用户名',
+      title: '用戶名',
       dataIndex: 'username',
       key: 'username',
+      width: 200,
     },
     {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 180,
-    },
-    {
-      title: '更新时间',
+      title: '更新時間',
       dataIndex: 'updatedAt',
       key: 'updatedAt',
-      width: 180,
+      width: 200,
     },
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 200,
     },
   ];
 
-  const list = async () => {
+  const list = async (keyword?: string) => {
     sharedState.isLoading.value = true;
+    if (keyword !== undefined) {
+      sharedState.pagination.value.currentPage = 1;
+      sharedState.searchKeyword.value = keyword;
+    }
+    const currentKeyword = sharedState.searchKeyword.value.trim();
     try {
       const response = await AdminApi.list({
         pageNum: sharedState.pagination.value.currentPage,
         pageSize: sharedState.pagination.value.pageSize,
+        username: currentKeyword || undefined,
       });
       const responseData = response.data.data as AdminList | Admin;
       if ('items' in responseData) {
         sharedState.data.value = responseData.items;
         sharedState.pagination.value.total = responseData.page.total;
       } else {
-        // 如果返回的是单个对象（按ID查询）
+        // 如果返回的是單個對象（按ID查詢）
         const singleData = responseData as Admin;
         sharedState.data.value = singleData ? [singleData] : [];
         sharedState.pagination.value.total = 1;
       }
     } catch (error: any) {
-      message.error(`获取列表失败: ${error.response?.data?.error || error.message}`);
+      message.error(`獲取列表失敗: ${error.response?.data?.error || error.message}`);
       return Promise.reject(error);
     } finally {
       sharedState.isLoading.value = false;
@@ -91,7 +94,7 @@ export const useAdminData = () => {
       const responseData = response.data.data as Admin;
       return responseData;
     } catch (error: any) {
-      message.error(`获取详情失败: ${error.response?.data?.error || error.message}`);
+      message.error(`獲取詳情失敗: ${error.response?.data?.error || error.message}`);
       return Promise.reject(error);
     } finally {
       sharedState.isLoading.value = false;
@@ -102,11 +105,11 @@ export const useAdminData = () => {
     sharedState.isLoading.value = true;
     try {
       await AdminApi.create(data);
-      message.success('创建成功');
-      // 创建成功后，调用 list() 刷新共享的 data
+      message.success('創建成功');
+      // 創建成功後，調用 list() 刷新共享的 data
       await list();
     } catch (error: any) {
-      message.error(`创建失败: ${error.response?.data?.error || error.message}`);
+      message.error(`創建失敗: ${error.response?.data?.error || error.message}`);
       return Promise.reject(error);
     } finally {
       sharedState.isLoading.value = false;
@@ -118,10 +121,10 @@ export const useAdminData = () => {
     try {
       await AdminApi.update(data);
       message.success('更新成功');
-      // 更新成功后，调用 list() 刷新共享的 data
+      // 更新成功後，調用 list() 刷新共享的 data
       await list();
     } catch (error: any) {
-      message.error(`更新失败: ${error.response?.data?.error || error.message}`);
+      message.error(`更新失敗: ${error.response?.data?.error || error.message}`);
       return Promise.reject(error);
     } finally {
       sharedState.isLoading.value = false;
@@ -132,11 +135,11 @@ export const useAdminData = () => {
     sharedState.isLoading.value = true;
     try {
       await AdminApi.remove({ id });
-      message.success('删除成功');
-      // 删除成功后，调用 list() 刷新共享的 data
+      message.success('刪除成功');
+      // 刪除成功後，調用 list() 刷新共享的 data
       await list();
     } catch (error: any) {
-      message.error(`删除失败: ${error.response?.data?.error || error.message}`);
+      message.error(`刪除失敗: ${error.response?.data?.error || error.message}`);
       return Promise.reject(error);
     } finally {
       sharedState.isLoading.value = false;
@@ -147,8 +150,10 @@ export const useAdminData = () => {
     isLoading: sharedState.isLoading,
     data: sharedState.data,
     pagination: sharedState.pagination,
+    searchKeyword: sharedState.searchKeyword,
     columns,
     list,
+    search: list,
     fetch,
     create,
     update,

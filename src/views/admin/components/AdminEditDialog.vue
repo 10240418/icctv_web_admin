@@ -32,7 +32,7 @@ const formData = ref<{
 
 const isLoading = ref(false);
 
-// 初始化表单数据
+// 初始化表單數據
 watch(
   () => props.visible,
   () => {
@@ -65,9 +65,9 @@ const validatePassword = (
   callback: (err?: Error) => void
 ) => {
   if (props.mode === "create" && !value) {
-    callback(new Error("请输入密码"));
+    callback(new Error("請輸入密碼"));
   } else if (props.mode === "edit" && value && value.length < 6) {
-    callback(new Error("密码长度至少6位"));
+    callback(new Error("密碼長度至少6位"));
   } else {
     callback();
   }
@@ -79,9 +79,9 @@ const validateConfirmPassword = (
   callback: (err?: Error) => void
 ) => {
   if (props.mode === "create" && !value) {
-    callback(new Error("请确认密码"));
+    callback(new Error("請確認密碼"));
   } else if (value && value !== formData.value.password) {
-    callback(new Error("两次输入的密码不一致"));
+    callback(new Error("兩次輸入的密碼不一致"));
   } else {
     callback();
   }
@@ -112,7 +112,7 @@ const handleOk = () => {
             emit("updated");
           })
           .catch(() => {
-            // 错误已在 useAdmin 中处理
+            // 錯誤已在 useAdmin 中處理
           })
           .finally(() => {
             isLoading.value = false;
@@ -127,7 +127,7 @@ const handleOk = () => {
             emit("created");
           })
           .catch(() => {
-            // 错误已在 useAdmin 中处理
+            // 錯誤已在 useAdmin 中處理
           })
           .finally(() => {
             isLoading.value = false;
@@ -148,7 +148,7 @@ const handleCancel = () => {
 <template>
   <a-modal
     :open="props.visible"
-    :title="props.mode === 'create' ? '新增管理员' : '编辑管理员'"
+    :title="props.mode === 'create' ? '新增管理員' : '編輯管理員'"
     :mask-closable="false"
     :confirm-loading="isLoading"
     @ok="handleOk"
@@ -160,9 +160,9 @@ const handleCancel = () => {
       :label-col="{ style: { width: '100px' } }"
     >
       <a-form-item
-        label="用户名"
+        label="用戶名"
         name="username"
-        :rules="[{ required: true, message: '请输入用户名!' }]"
+        :rules="[{ required: true, message: '請輸入用戶名!' }]"
       >
         <a-input
           v-model:value="formData.username"
@@ -171,25 +171,25 @@ const handleCancel = () => {
       </a-form-item>
 
       <a-form-item
-        label="密码"
+        label="密碼"
         name="password"
         :rules="[{ validator: validatePassword }]"
       >
         <a-input-password
           v-model:value="formData.password"
-          :placeholder="props.mode === 'edit' ? '留空则不修改密码' : '请输入密码'"
+          :placeholder="props.mode === 'edit' ? '留空則不修改密碼' : '請輸入密碼'"
         />
       </a-form-item>
 
       <a-form-item
         v-if="props.mode === 'create'"
-        label="确认密码"
+        label="確認密碼"
         name="confirmPassword"
         :rules="[{ validator: validateConfirmPassword }]"
       >
         <a-input-password
           v-model:value="formData.confirmPassword"
-          placeholder="请再次输入密码"
+          placeholder="請再次輸入密碼"
         />
       </a-form-item>
     </a-form>

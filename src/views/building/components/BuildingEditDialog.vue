@@ -32,7 +32,7 @@ const formData = ref<{
 
 const isLoading = ref(false);
 
-// 初始化表单数据
+// 初始化表單數據
 watch(
   () => props.visible,
   () => {
@@ -81,7 +81,7 @@ const handleOk = () => {
             emit("updated");
           })
           .catch(() => {
-            // 错误已在 useBuilding 中处理
+            // 錯誤已在 useBuilding 中處理
           })
           .finally(() => {
             isLoading.value = false;
@@ -97,7 +97,7 @@ const handleOk = () => {
             emit("created");
           })
           .catch(() => {
-            // 错误已在 useBuilding 中处理
+            // 錯誤已在 useBuilding 中處理
           })
           .finally(() => {
             isLoading.value = false;
@@ -118,7 +118,7 @@ const handleCancel = () => {
 <template>
   <a-modal
     :open="props.visible"
-    :title="props.mode === 'create' ? '新增建筑' : '编辑建筑'"
+    :title="props.mode === 'create' ? '新增建築' : '編輯建築'"
     :mask-closable="false"
     :confirm-loading="isLoading"
     @ok="handleOk"
@@ -132,21 +132,21 @@ const handleCancel = () => {
       <a-form-item
         label="iSmart ID"
         name="ismartid"
-        :rules="[{ required: true, message: '请输入iSmart ID!' }]"
+        :rules="[{ required: true, message: '請輸入iSmart ID!' }]"
       >
         <a-input v-model:value="formData.ismartid" />
       </a-form-item>
 
       <a-form-item
-        label="建筑名称"
+        label="建築名稱"
         name="name"
-        :rules="[{ required: true, message: '请输入建筑名称!' }]"
+        :rules="[{ required: true, message: '請輸入建築名稱!' }]"
       >
         <a-input v-model:value="formData.name" />
       </a-form-item>
 
       <a-form-item
-        label="备注"
+        label="備註"
         name="remark"
       >
         <a-textarea

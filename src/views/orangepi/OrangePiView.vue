@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, onActivated, ref } from "vue";
 import { Modal } from "ant-design-vue";
 import type { Device } from "@/model/device";
 import { useOrangePiData } from "./useOrangePi";
 import OrangePiEditDialog from "./components/OrangePiEditDialog.vue";
+import OrangePiDetailDialog from "./components/OrangePiDetailDialog.vue";
+import { formatDate } from "@/utils/dateFormat";
 
 const {
   data,
@@ -19,6 +21,8 @@ const {
 const isEditDialogVisible = ref(false);
 const editDialogMode = ref<"create" | "edit">("create");
 const selectedDeviceData = ref<Device | undefined>(undefined);
+const isDetailDialogVisible = ref(false);
+const detailDevice = ref<Device | undefined>(undefined);
 
 const handleSearch = (value?: string) => {
   setSearchKeyword(value?.trim() || "");
@@ -29,6 +33,11 @@ const showAddDialog = () => {
   editDialogMode.value = "create";
   selectedDeviceData.value = undefined;
   isEditDialogVisible.value = true;
+};
+
+const showDetailDialog = (device: Device) => {
+  detailDevice.value = device;
+  isDetailDialogVisible.value = true;
 };
 
 const editDevice = async (device: Device) => {
@@ -59,14 +68,19 @@ const handleUpdated = () => {
 onMounted(() => {
   list();
 });
+
+onActivated(() => {
+  list(searchKeyword.value || undefined);
+});
 </script>
 
 <template>
   <div class="space-y-4">
-    <div class="flex justify-between">
-      <div>
-        <h2 class="text-2xl font-semibold text-foreground">OrangePi 設備</h2>
-        <p class="text-xs text-muted">OrangePi Devices</p>
+    <div
+      class="flex items-center justify-between border-b border-gray-300 pb-4">
+      <div class="flex items-baseline gap-3">
+        <h2 class="text-2xl font-semibold text-foreground">香橙派</h2>
+        <p class="text-sm text-muted">OrangePi Devices</p>
       </div>
     </div>
 
@@ -79,11 +93,18 @@ onMounted(() => {
       @updated="handleUpdated"
     />
 
-    <div class="flex items-center gap-3">
+    <OrangePiDetailDialog
+      :visible="isDetailDialogVisible"
+      :device="detailDevice"
+      @update:visible="isDetailDialogVisible = $event"
+      @refresh-list="handleUpdated"
+    />
+
+    <div class="flex w-full justify-between items-center gap-3">
       <a-input-search
         v-model:value="searchKeyword"
         placeholder="輸入 iSmart ID 搜尋"
-        class="flex-1 min-w-0"
+        style="width: 250px"
         @search="handleSearch"
       />
       <a-button
@@ -96,6 +117,12 @@ onMounted(() => {
       :columns="columns"
       :data-source="data"
       :loading="isLoading"
+      :pagination="{
+        position: ['bottomRight'],
+        hideOnSinglePage: false,
+        showSizeChanger: true,
+        defaultPageSize: 10,
+      }"
       row-key="id"
     >
       <template #bodyCell="{ column, record }">
@@ -104,8 +131,13 @@ onMounted(() => {
             {{ record.is_active ? '啟用' : '停用' }}
           </a-tag>
         </template>
+        <template v-else-if="column.key === 'updatedAt'">
+          {{ formatDate(record.updatedAt) }}
+        </template>
         <template v-else-if="column.key === 'action'">
           <span>
+            <a @click="showDetailDialog(record)">詳情</a>
+            <a-divider type="vertical" />
             <a @click="editDevice(record)">編輯</a>
             <a-divider type="vertical" />
             <a

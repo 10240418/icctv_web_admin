@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onActivated } from "vue";
 import { Modal } from "ant-design-vue";
 import { useDeviceData } from "./useDevice";
 import type { Device } from "@/model/device";
 import DeviceEditDialog from "./components/DeviceEditDialog.vue";
+import { formatDate } from "@/utils/dateFormat";
 
-const { data, columns, isLoading, list, remove, fetch } = useDeviceData();
+const { data, columns, isLoading, searchKeyword, list, remove, fetch, search } =
+  useDeviceData();
 
 const isEditDialogVisible = ref(false);
 const editDialogMode = ref<"create" | "edit">("create");
@@ -29,7 +31,7 @@ const deleteDevice = async (id: number) => {
 
 const confirmDeleteDevice = (id: number) => {
   Modal.confirm({
-    title: "确定要删除这个设备吗？",
+    title: "確定要刪除這個設備嗎？",
     onOk: () => deleteDevice(id),
   });
 };
@@ -42,8 +44,16 @@ const handleUpdated = () => {
   list();
 };
 
+const handleSearch = (value?: string) => {
+  search(value?.trim() || "");
+};
+
 onMounted(() => {
   list();
+});
+
+onActivated(() => {
+  list(searchKeyword.value || undefined);
 });
 </script>
 
@@ -58,23 +68,38 @@ onMounted(() => {
       @updated="handleUpdated"
     />
 
-    <div class="flex justify-between">
-      <div>
-        <h2 class="text-2xl font-semibold text-foreground">设备管理</h2>
-        <p class="text-xs text-muted">Device Management</p>
-        <p class="text-sm text-muted">與後端 /api/device* 接口保持一致</p>
+    <div
+      class="flex items-center justify-between border-b border-gray-300 pb-4">
+      <div class="flex items-baseline gap-3">
+        <h2 class="text-2xl font-semibold text-foreground">設備管理</h2>
+        <p class="text-sm text-muted">Device Management</p>
       </div>
+    </div>
+
+    <div class="flex w-full justify-between items-center gap-3">
+      <a-input-search
+        v-model:value="searchKeyword"
+        placeholder="輸入 iSmart ID 搜尋"
+        style="width: 250px"
+        @search="handleSearch"
+        @pressEnter="handleSearch(searchKeyword)"
+      />
       <a-button
         type="primary"
         @click="showAddDeviceDialog"
-      >新增设备</a-button>
+      >新增設備</a-button>
     </div>
 
     <a-table
       :data-source="data"
       :columns="columns"
       :loading="isLoading"
-      :pagination="false"
+      :pagination="{
+        position: ['bottomRight'],
+        hideOnSinglePage: false,
+        showSizeChanger: true,
+        defaultPageSize: 10,
+      }"
       row-key="id"
     >
       <template #bodyCell="{ column, record }">
@@ -83,14 +108,17 @@ onMounted(() => {
             {{ record.is_active ? '激活' : '未激活' }}
           </a-tag>
         </template>
+        <template v-else-if="column.key === 'updatedAt'">
+          {{ formatDate(record.updatedAt) }}
+        </template>
         <template v-else-if="column.key === 'action'">
           <span>
-            <a @click="editDevice(record)">编辑</a>
+            <a @click="editDevice(record)">編輯</a>
             <a-divider type="vertical" />
             <a
               style="color: lightcoral;"
               @click="confirmDeleteDevice(record.id)"
-            >删除</a>
+            >刪除</a>
           </span>
         </template>
       </template>

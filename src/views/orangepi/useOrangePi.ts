@@ -1,9 +1,16 @@
 import { ref } from 'vue';
 import { message } from 'ant-design-vue';
-import { DeviceApi } from '@/httpapis/api';
+import { DeviceApi, OrangePiRemoteApi, AuthApi } from '@/httpapis/api';
 import type { Device } from '@/model/device';
+import type {
+  OrangePiRemoteInfo,
+  OrangePiRemoteHealth,
+  MediaMTXPathsResponse,
+  MediaMTXPathDetail,
+  PublicTokenResponse,
+} from '@/model/orangepi';
 
-// 单例状态：如果系统中已有数据体就使用该数据体，否则创建新的
+// 單例狀態：如果系統中已有數據體就使用該數據體，否則創建新的
 let state: {
   isLoading: ReturnType<typeof ref<boolean>>;
   data: ReturnType<typeof ref<Device[]>>;
@@ -21,8 +28,8 @@ export const useOrangePiData = () => {
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-    { title: 'iSmart ID', dataIndex: 'ismartid', key: 'ismartid' },
-    { title: '設備名稱', dataIndex: 'name', key: 'name' },
+    { title: 'iSmart ID', dataIndex: 'ismartid', key: 'ismartid', width: 150 },
+    { title: '設備名稱', dataIndex: 'name', key: 'name', width: 200 },
     {
       title: '認證服務端口',
       dataIndex: 'icctv_auth_service_remote_port',
@@ -42,15 +49,15 @@ export const useOrangePiData = () => {
       width: 100,
     },
     {
-      title: '創建時間',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 180,
+      title: '更新時間',
+      dataIndex: 'updatedAt',
+      key: 'updatedAt',
+      width: 200,
     },
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 200,
     },
   ];
 
@@ -92,6 +99,8 @@ export const useOrangePiData = () => {
     icctv_auth_service_remote_port: number;
     ssh_remote_port: number;
     is_active?: boolean;
+    user_channels?: number[];
+    all_channels?: number[];
   }) => {
     state!.isLoading.value = true;
     try {
@@ -113,6 +122,8 @@ export const useOrangePiData = () => {
       icctv_auth_service_remote_port?: number;
       ssh_remote_port?: number;
       is_active?: boolean;
+      user_channels?: number[];
+      all_channels?: number[];
     },
     id: number,
   ) => {
@@ -147,6 +158,135 @@ export const useOrangePiData = () => {
     state!.searchKeyword.value = keyword;
   };
 
+  // 遠程管理相關方法
+  const generateStaffToken = async (ismartid: string): Promise<PublicTokenResponse> => {
+    try {
+      // @ts-ignore
+      const response = await AuthApi.publicToken({ ismartid, is_staff: true }, null);
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`生成Token失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  const getRemoteInfo = async (id: number, token: string): Promise<OrangePiRemoteInfo> => {
+    try {
+      const response = await OrangePiRemoteApi.getInfo(id, token);
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`獲取設備信息失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  const getRemoteHealth = async (id: number): Promise<OrangePiRemoteHealth> => {
+    try {
+      const response = await OrangePiRemoteApi.getHealth(id);
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`獲取健康檢查失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  const listRemotePaths = async (
+    id: number,
+    token: string,
+    page = 0,
+    itemsPerPage = 50,
+  ): Promise<MediaMTXPathsResponse> => {
+    try {
+      const response = await OrangePiRemoteApi.listPaths({
+        id,
+        token,
+        page,
+        items_per_page: itemsPerPage,
+      });
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`獲取Paths列表失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  const getRemotePathDetail = async (
+    id: number,
+    token: string,
+    name: string,
+  ): Promise<MediaMTXPathDetail> => {
+    try {
+      const response = await OrangePiRemoteApi.getPathDetail({ id, token, name });
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`獲取Path詳情失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  const addRemotePath = async (
+    id: number,
+    token: string,
+    name: string,
+    config: any,
+  ) => {
+    try {
+      const response = await OrangePiRemoteApi.addPath({ id, token, name, config });
+      message.success('新增Path成功');
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`新增Path失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  const updateRemotePath = async (
+    id: number,
+    token: string,
+    name: string,
+    config: any,
+  ) => {
+    try {
+      const response = await OrangePiRemoteApi.updatePath({ id, token, name, config });
+      message.success('更新Path成功');
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`更新Path失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  const deleteRemotePath = async (id: number, token: string, name: string) => {
+    try {
+      const response = await OrangePiRemoteApi.deletePath({ id, token, name });
+      message.success('刪除Path成功');
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`刪除Path失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
+  // 遠程更新FRPC端口
+  const remoteUpdatePorts = async (
+    id: number,
+    sshRemotePort: number,
+    authRemotePort: number,
+  ) => {
+    try {
+      const response = await OrangePiRemoteApi.updatePorts({
+        id,
+        ssh_remote_port: sshRemotePort,
+        icctv_auth_service_remote_port: authRemotePort,
+      });
+      message.success('遠程更新FRPC端口成功');
+      return response.data.data;
+    } catch (error: any) {
+      message.error(`遠程更新FRPC端口失敗: ${error.response?.data?.error || error.message}`);
+      return Promise.reject(error);
+    }
+  };
+
   return {
     isLoading: state!.isLoading,
     data: state!.data,
@@ -158,6 +298,16 @@ export const useOrangePiData = () => {
     update,
     remove,
     setSearchKeyword,
+    // 遠程管理方法
+    generateStaffToken,
+    getRemoteInfo,
+    getRemoteHealth,
+    listRemotePaths,
+    getRemotePathDetail,
+    addRemotePath,
+    updateRemotePath,
+    deleteRemotePath,
+    remoteUpdatePorts,
   };
 };
 

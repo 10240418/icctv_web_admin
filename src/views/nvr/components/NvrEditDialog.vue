@@ -153,7 +153,10 @@ const handleCancel = () => {
         name="url"
         :rules="[{ required: true, message: '請輸入訪問地址 (IP:Port)！' }]"
       >
-        <a-input v-model:value="formData.url" placeholder="192.168.1.100:8080" />
+        <a-input
+          v-model:value="formData.url"
+          placeholder="192.168.1.100:8081"
+        />
       </a-form-item>
 
       <a-form-item
