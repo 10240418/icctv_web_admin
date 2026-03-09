@@ -3,13 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/dashboard',
-  },
-  {
-    path: '/dashboard',
-    name: 'Dashboard',
-    meta: { title: '儀表盤', subtitle: 'Dashboard', icon: 'dashboard', hidden: true },
-    component: () => import('../views/dashboard/DashboardView.vue'),
+    redirect: '/orangepi',
   },
   {
     path: '/orangepi',

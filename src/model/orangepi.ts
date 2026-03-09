@@ -57,13 +57,16 @@ export interface MediaMTXPathOperationResult {
   mediamtx_response: any
 }
 
-export interface PublicTokenResponse {
+export interface OrangePiTokenData {
+  orangepi_id: number
+  orangepi_name: string
+  is_active: boolean
   token: string
-  orangepis: Array<{
-    orangepi_id: number
-    orangepi_name: string
-    urls: string[]
-  }>
+  urls: string[]
+}
+
+export interface PublicTokenResponse {
+  orangepis: OrangePiTokenData[]
 }
 
 

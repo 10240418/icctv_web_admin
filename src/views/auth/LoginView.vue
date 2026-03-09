@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { message } from 'ant-design-vue';
-import { useAuthStore } from '../../pinia/useAuthStore';
-import { AuthApi, HealthApi } from '@/httpapis/api';
+import { reactive, onMounted } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { message } from "ant-design-vue";
+import { useAuthStore } from "../../pinia/useAuthStore";
+import { AuthApi, HealthApi } from "@/httpapis/api";
 
 const formState = reactive({
-  username: '',
-  password: '',
+  username: "",
+  password: "",
 });
 
 const router = useRouter();
@@ -18,7 +18,7 @@ onMounted(async () => {
   try {
     await HealthApi.check();
   } catch {
-    message.error('後端服務不可用，請稍後再試');
+    message.error("後端服務不可用，請稍後再試");
   }
 });
 
@@ -30,23 +30,20 @@ const handleLogin = async () => {
     });
 
     if (!response.data.success) {
-      message.error(response.data.error || '登入失敗，請檢查帳號或密碼');
+      message.error(response.data.error || "登入失敗，請檢查帳號或密碼");
       return;
     }
 
     const { accessToken, expiresAt } = response.data.data;
 
-    authStore.setToken(accessToken);
-    authStore.setUser({ username: formState.username, roles: ['admin'] });
+    authStore.setToken(accessToken, expiresAt);
+    authStore.setUser({ username: formState.username, roles: ["admin"] });
 
-    localStorage.setItem('icctv-token', accessToken);
-    localStorage.setItem('icctv-token-expires-at', expiresAt);
-
-    const redirect = (route.query.redirect as string) || '/dashboard';
-  await router.push(redirect);
+    const redirect = (route.query.redirect as string) || "/orangepi";
+    await router.push(redirect);
   } catch (error: any) {
     const backendError = error?.response?.data?.error;
-    message.error(backendError || '登入失敗，請稍後再試');
+    message.error(backendError || "登入失敗，請稍後再試");
   }
 };
 </script>

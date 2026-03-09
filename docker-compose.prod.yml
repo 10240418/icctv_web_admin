@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   icctv-web-admin:
     image: icctv_web_admin-icctv-web-admin:latest

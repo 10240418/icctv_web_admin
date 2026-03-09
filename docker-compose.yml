@@ -1,12 +1,10 @@
-version: "3.8"
-
 services:
   icctv-web-admin:
     build:
       context: .
       args:
         # 后端 API 地址，根据实际情况修改
-        VITE_API_BASE_URL: http://ajlive.sunofw.cn:32001/api
+        VITE_API_BASE_URL: /api
     container_name: icctv-web-admin
     ports:
       - "3000:80"

@@ -10,6 +10,8 @@ const router = createRouter({
 
 router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, next: NavigationGuardNext) => {
   const authStore = useAuthStore()
+  authStore.initializeAuth()
+
   const requiresAuth = to.meta?.requiresAuth ?? to.path !== '/login'
 
   if (requiresAuth && !authStore.isAuthenticated) {
@@ -18,7 +20,7 @@ router.beforeEach((to: RouteLocationNormalized, _from: RouteLocationNormalized, 
   }
 
   if (to.path === '/login' && authStore.isAuthenticated) {
-    next((to.query.redirect as string) || '/dashboard')
+    next((to.query.redirect as string) || '/orangepi')
     return
   }
 

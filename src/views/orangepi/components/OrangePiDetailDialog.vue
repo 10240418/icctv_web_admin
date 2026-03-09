@@ -140,20 +140,38 @@ const generateStaffToken = async () => {
     });
 
     // @ts-ignore
-    const response = await AuthApi.publicToken({
-      ismartid: props.device.ismartid,
-      is_staff: true,
-    }, null);
+    const response = await AuthApi.publicToken(
+      {
+        ismartid: props.device.ismartid,
+        is_staff: true,
+      },
+      null
+    );
 
     console.log("Token response:", response.data);
 
     // 檢查響應數據結構
-    if (!response.data || !response.data.data || !response.data.data.token) {
+    if (
+      !response.data ||
+      !response.data.data ||
+      !response.data.data.orangepis
+    ) {
       message.error("Token生成失敗：返回數據格式錯誤");
       throw new Error("Invalid token response");
     }
 
-    staffToken.value = response.data.data.token;
+    // 從響應數組中查找對應的 OrangePi 數據
+    const orangepis = response.data.data.orangepis;
+    const targetOrangePi = orangepis.find(
+      (item: any) => item.orangepi_id === props.device?.id
+    );
+
+    if (!targetOrangePi) {
+      message.error("未找到對應的設備Token數據");
+      throw new Error("Target orangepi not found in response");
+    }
+
+    staffToken.value = targetOrangePi.token;
     message.success("Token生成成功");
   } catch (error: any) {
     const errorMsg = error.response?.data?.error || error.message;
