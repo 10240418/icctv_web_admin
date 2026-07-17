@@ -10,6 +10,7 @@ import {
   ApiOutlined,
   SettingOutlined,
   VideoCameraOutlined,
+  CodeOutlined,
 } from "@ant-design/icons-vue";
 
 const route = useRoute();
@@ -23,6 +24,7 @@ const iconMap = {
   api: ApiOutlined,
   setting: SettingOutlined,
   "video-camera": VideoCameraOutlined,
+  code: CodeOutlined,
 };
 
 const navigationRoutes = computed(() =>
@@ -40,7 +42,7 @@ const navigationRoutes = computed(() =>
   <RouterView v-if="!showLayout" />
   <div
     v-else
-    class="flex min-h-screen bg-surface text-foreground transition-colors duration-300"
+    class="flex min-h-screen flex-col bg-surface text-foreground transition-colors duration-300 md:flex-row"
   >
     <aside
       class="hidden w-68 flex-col border-r border-gray-300 bg-surface px-5 py-6 md:flex"
@@ -79,7 +81,28 @@ const navigationRoutes = computed(() =>
         </RouterLink>
       </nav>
     </aside>
-    <main class="flex flex-1 flex-col">
+    <header class="border-b border-gray-300 bg-white px-4 py-3 md:hidden">
+      <p class="text-base font-semibold">後台管理</p>
+      <nav class="mt-3 flex gap-2 overflow-x-auto pb-1">
+        <RouterLink
+          v-for="nav in navigationRoutes"
+          :key="nav.path"
+          :to="nav.path"
+          class="flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm"
+          :class="
+            route.path.startsWith(nav.path)
+              ? 'bg-[#EAEBEF] text-foreground'
+              : 'text-[#717182]'
+          "
+        >
+          <component
+            :is="iconMap[nav.meta?.icon as keyof typeof iconMap]"
+          />
+          <span>{{ nav.meta?.title }}</span>
+        </RouterLink>
+      </nav>
+    </header>
+    <main class="flex min-w-0 flex-1 flex-col">
       <section class="flex-1 bg-surface p-6">
         <RouterView />
       </section>

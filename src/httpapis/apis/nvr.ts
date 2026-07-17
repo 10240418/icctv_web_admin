@@ -23,7 +23,7 @@ export const NvrApi = {
     building_id: number
     admin_user?: { name: string; password: string }
     users?: Array<{ name: string; password: string }>
-    rtsp_urls?: Array<{ channel: number; url: string }>
+    rtsp_urls?: Array<{ channel?: number; path?: string; url: string; remark?: string }>
   }) {
     return http.post<ApiResponse<Nvr>>('/nvr', data)
   },
@@ -37,7 +37,7 @@ export const NvrApi = {
       building_id?: number
       admin_user?: { name: string; password: string }
       users?: Array<{ name: string; password: string }>
-      rtsp_urls?: Array<{ channel: number; url: string }>
+      rtsp_urls?: Array<{ channel?: number; path?: string; url: string; remark?: string }>
     },
     id: number,
   ) {
@@ -64,7 +64,10 @@ export const NvrApi = {
 
   // 7. func NvrApi.addRTSPUrl - 添加RTSP URL
   // POST /api/nvr/rtsp-url
-  addRTSPUrl(data: { id: number; url: { channel: number; url: string } }) {
+  addRTSPUrl(data: {
+    id: number
+    url: { channel?: number; path?: string; url: string; remark?: string }
+  }) {
     return http.post<ApiResponse<Nvr>>('/nvr/rtsp-url', data)
   },
 
@@ -86,4 +89,3 @@ export const NvrApi = {
     return http.delete<ApiResponse<Nvr>>('/nvr/user', { data })
   },
 }
-

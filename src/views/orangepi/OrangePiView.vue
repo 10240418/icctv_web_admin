@@ -124,9 +124,20 @@ onActivated(() => {
         defaultPageSize: 10,
       }"
       row-key="id"
+      :scroll="{ x: 1100 }"
     >
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'is_active'">
+        <template v-if="column.key === 'ismartids'">
+          <div class="flex flex-wrap gap-1">
+            <a-tag
+              v-for="ismartid in (record.ismartids?.length ? record.ismartids : [record.ismartid])"
+              :key="ismartid"
+            >
+              {{ ismartid }}
+            </a-tag>
+          </div>
+        </template>
+        <template v-else-if="column.key === 'is_active'">
           <a-tag :color="record.is_active ? 'green' : 'red'">
             {{ record.is_active ? '啟用' : '停用' }}
           </a-tag>
@@ -150,4 +161,3 @@ onActivated(() => {
     </a-table>
   </div>
 </template>
-

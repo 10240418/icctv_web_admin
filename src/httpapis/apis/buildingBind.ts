@@ -6,6 +6,7 @@ import type { Device } from '../../model/device'
 // 1. func BuildingBindApi.bind - 绑定OrangePi到建筑 ✓ 已应用
 // 2. func BuildingBindApi.unbind - 解绑OrangePi ✓ 已应用
 // 3. func BuildingBindApi.getByBuilding - 获取建筑关联的OrangePi ✓ 已应用
+// 4. func BuildingBindApi.updateChannels - 更新大厦可见频道 ✓ 已应用
 
 export const BuildingBindApi = {
   // 1. func BuildingBindApi.bind - 绑定OrangePi到建筑 ✓ 已应用
@@ -16,7 +17,7 @@ export const BuildingBindApi = {
 
   // 2. func BuildingBindApi.unbind - 解绑OrangePi ✓ 已应用
   // DELETE /api/bind/building-orangepi
-  unbind(data: { orangepi_id: number }) {
+  unbind(data: { building_id?: number; orangepi_id: number }) {
     return http.delete<ApiResponse<{ unbound: boolean }>>('/bind/building-orangepi', {
       data,
     })
@@ -30,5 +31,16 @@ export const BuildingBindApi = {
       `/bind/building-orangepi/${buildingId}`,
     )
   },
-}
 
+  // PUT /api/bind/building-orangepi/channels
+  updateChannels(data: {
+    building_id: number
+    orangepi_id: number
+    channels: number[]
+  }) {
+    return http.put<ApiResponse<{ updated: boolean }>>(
+      '/bind/building-orangepi/channels',
+      data,
+    )
+  },
+}

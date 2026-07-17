@@ -28,7 +28,7 @@ export const useOrangePiData = () => {
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-    { title: 'iSmart ID', dataIndex: 'ismartid', key: 'ismartid', width: 150 },
+    { title: 'iSmart ID', dataIndex: 'ismartids', key: 'ismartids', width: 240 },
     { title: '設備名稱', dataIndex: 'name', key: 'name', width: 200 },
     {
       title: '認證服務端口',
@@ -94,13 +94,15 @@ export const useOrangePiData = () => {
   };
 
   const create = async (data: {
-    ismartid: string;
+    ismartid?: string;
+    ismartids: string[];
     name: string;
     icctv_auth_service_remote_port: number;
     ssh_remote_port: number;
     is_active?: boolean;
     user_channels?: number[];
     all_channels?: number[];
+    channel_remarks?: Record<string, string>;
   }) => {
     state!.isLoading.value = true;
     try {
@@ -118,12 +120,14 @@ export const useOrangePiData = () => {
   const update = async (
     data: {
       ismartid?: string;
+      ismartids?: string[];
       name?: string;
       icctv_auth_service_remote_port?: number;
       ssh_remote_port?: number;
       is_active?: boolean;
       user_channels?: number[];
       all_channels?: number[];
+      channel_remarks?: Record<string, string>;
     },
     id: number,
   ) => {
@@ -310,6 +314,4 @@ export const useOrangePiData = () => {
     remoteUpdatePorts,
   };
 };
-
-
 

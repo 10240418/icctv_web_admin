@@ -20,7 +20,7 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/nvr',
     name: 'Nvr',
-    meta: { title: 'NVR 管理', subtitle: 'NVR Management', icon: 'video-camera' },
+    meta: { title: 'RTSP 組管理', subtitle: 'RTSP Groups', icon: 'video-camera' },
     component: () => import('../views/nvr/NvrView.vue'),
   },
   {
@@ -36,6 +36,12 @@ export const appRoutes: RouteRecordRaw[] = [
     component: () => import('../views/network/PublicNetView.vue'),
   },
   {
+    path: '/public-api',
+    name: 'PublicApiTest',
+    meta: { title: '接口測試', subtitle: 'Public API Test', icon: 'code' },
+    component: () => import('../views/auth/PublicApiTestView.vue'),
+  },
+  {
     path: '/login',
     name: 'Login',
     meta: { title: '登入', subtitle: 'Login', layout: false },
@@ -48,4 +54,3 @@ export const appRoutes: RouteRecordRaw[] = [
     component: () => import('../views/system/NotFoundView.vue'),
   },
 ] satisfies RouteRecordRaw[]
-

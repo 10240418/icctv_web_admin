@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
+import { message } from "ant-design-vue";
 import type { Device } from "@/model/device";
+import type { Building } from "@/model/building";
+import { BuildingApi } from "@/httpapis/api";
 import { useOrangePiData } from "../useOrangePi";
 
 const props = defineProps<{
@@ -21,19 +24,21 @@ const { create, update, remoteUpdatePorts } = useOrangePiData();
 const formRef = ref();
 const formData = ref<{
   id?: number;
-  ismartid: string;
+  ismartids: string[];
   name: string;
   icctv_auth_service_remote_port: number | undefined;
   ssh_remote_port: number | undefined;
   user_channels: number[];
   all_channels: number[];
+  channel_remarks: Record<string, string>;
 }>({
-  ismartid: "",
+  ismartids: [],
   name: "",
   icctv_auth_service_remote_port: undefined,
   ssh_remote_port: undefined,
   user_channels: [],
   all_channels: [],
+  channel_remarks: {},
 });
 
 // 频道选项 (1-8)，用于多选下拉框
@@ -41,6 +46,23 @@ const channelOptions = Array.from({ length: 8 }, (_, i) => ({
   label: `Channel ${i + 1}`,
   value: i + 1,
 }));
+
+const remarkChannelOptions = computed(() => {
+  const selected = new Set([
+    ...formData.value.all_channels,
+    ...formData.value.user_channels,
+  ]);
+  return selected.size
+    ? channelOptions.filter((option) => selected.has(option.value))
+    : channelOptions;
+});
+
+const compactChannelRemarks = (values: Record<string, string>) =>
+  Object.fromEntries(
+    Object.entries(values)
+      .map(([key, value]) => [key, value.trim()] as const)
+      .filter(([, value]) => value !== "")
+  );
 
 // 处理全部频道的选择逻辑：点击某个频道时自动选中 1 到该频道的所有频道
 const handleAllChannelsChange = (values: number[]) => {
@@ -57,6 +79,20 @@ const handleAllChannelsChange = (values: number[]) => {
 };
 
 const isLoading = ref(false);
+const buildings = ref<Building[]>([]);
+const isLoadingBuildings = ref(false);
+
+const loadBuildings = async () => {
+  isLoadingBuildings.value = true;
+  try {
+    const response = await BuildingApi.list();
+    buildings.value = response.data.data || [];
+  } catch (error: any) {
+    message.error(`加載大廈失敗: ${error.response?.data?.error || error.message}`);
+  } finally {
+    isLoadingBuildings.value = false;
+  }
+};
 
 watch(
   () => props.visible,
@@ -69,24 +105,30 @@ watch(
     if (props.mode === "edit" && props.deviceData) {
       formData.value = {
         id: props.deviceData.id,
-        ismartid: props.deviceData.ismartid,
+        ismartids:
+          props.deviceData.ismartids?.length > 0
+            ? [...props.deviceData.ismartids]
+            : [props.deviceData.ismartid].filter(Boolean),
         name: props.deviceData.name,
         icctv_auth_service_remote_port:
           props.deviceData.icctv_auth_service_remote_port,
         ssh_remote_port: props.deviceData.ssh_remote_port,
         user_channels: props.deviceData.user_channels || [],
         all_channels: props.deviceData.all_channels || [],
+        channel_remarks: { ...(props.deviceData.channel_remarks || {}) },
       };
     } else {
       formData.value = {
-        ismartid: "",
+        ismartids: [],
         name: "",
         icctv_auth_service_remote_port: undefined,
         ssh_remote_port: undefined,
         user_channels: [],
         all_channels: [],
+        channel_remarks: {},
       };
     }
+    loadBuildings();
   },
   { immediate: true }
 );
@@ -101,12 +143,13 @@ const handleOk = () => {
 
       if (props.mode === "edit") {
         const updateData: {
-          ismartid?: string;
+          ismartids?: string[];
           name?: string;
           icctv_auth_service_remote_port?: number;
           ssh_remote_port?: number;
           user_channels?: number[];
           all_channels?: number[];
+          channel_remarks?: Record<string, string>;
         } = {};
 
         // 检查端口是否有变化
@@ -117,8 +160,14 @@ const handleOk = () => {
           formData.value.ssh_remote_port !== props.deviceData?.ssh_remote_port;
         const portsChanged = authPortChanged || sshPortChanged;
 
-        if (formData.value.ismartid !== props.deviceData?.ismartid) {
-          updateData.ismartid = formData.value.ismartid;
+        const previousISmartIDs = props.deviceData?.ismartids?.length
+          ? props.deviceData.ismartids
+          : [props.deviceData?.ismartid].filter(Boolean) as string[];
+        if (
+          JSON.stringify([...formData.value.ismartids].sort()) !==
+          JSON.stringify([...previousISmartIDs].sort())
+        ) {
+          updateData.ismartids = formData.value.ismartids;
         }
         if (formData.value.name !== props.deviceData?.name) {
           updateData.name = formData.value.name;
@@ -141,6 +190,13 @@ const handleOk = () => {
           JSON.stringify(props.deviceData?.all_channels?.sort() || [])
         ) {
           updateData.all_channels = formData.value.all_channels;
+        }
+        const nextRemarks = compactChannelRemarks(formData.value.channel_remarks);
+        const previousRemarks = compactChannelRemarks(
+          props.deviceData?.channel_remarks || {}
+        );
+        if (JSON.stringify(nextRemarks) !== JSON.stringify(previousRemarks)) {
+          updateData.channel_remarks = nextRemarks;
         }
 
         // 如果端口有变化，先调用远程更新FRPC端口（使用旧端口连接）
@@ -180,7 +236,8 @@ const handleOk = () => {
           });
       } else {
         create({
-          ismartid: formData.value.ismartid,
+          ismartid: formData.value.ismartids[0],
+          ismartids: formData.value.ismartids,
           name: formData.value.name,
           icctv_auth_service_remote_port:
             formData.value.icctv_auth_service_remote_port!,
@@ -193,6 +250,7 @@ const handleOk = () => {
             formData.value.all_channels.length > 0
               ? formData.value.all_channels
               : undefined,
+          channel_remarks: compactChannelRemarks(formData.value.channel_remarks),
         })
           .then(() => {
             emit("update:visible", false);
@@ -230,11 +288,20 @@ const handleCancel = () => {
       :label-col="{ style: { width: '140px' } }"
     >
       <a-form-item
-        label="iSmart ID"
-        name="ismartid"
-        :rules="[{ required: true, message: '請輸入 iSmart ID' }]"
+        label="綁定大廈"
+        name="ismartids"
+        :rules="[{ required: true, type: 'array', min: 1, message: '請至少選擇一個大廈' }]"
       >
-        <a-input v-model:value="formData.ismartid" />
+        <a-select
+          v-model:value="formData.ismartids"
+          mode="multiple"
+          :loading="isLoadingBuildings"
+          placeholder="選擇一個或多個大廈"
+          :options="buildings.map((building) => ({
+            label: `${building.name} (${building.ismartid})`,
+            value: building.ismartid,
+          }))"
+        />
       </a-form-item>
 
       <a-form-item
@@ -305,12 +372,22 @@ const handleCancel = () => {
           :options="channelOptions"
         />
       </a-form-item>
+
+      <a-form-item label="頻道說明">
+        <div class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+          <a-input
+            v-for="option in remarkChannelOptions"
+            :key="option.value"
+            v-model:value="formData.channel_remarks[`channel${option.value}`]"
+            :addon-before="`Channel ${option.value}`"
+            placeholder="例如：大堂監控"
+          />
+        </div>
+      </a-form-item>
     </a-form>
   </a-modal>
 </template>
 
 <style scoped>
 </style>
-
-
 

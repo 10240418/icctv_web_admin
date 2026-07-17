@@ -19,13 +19,15 @@ export const DeviceApi = {
   // 2. func DeviceApi.create - 创建OrangePi设备 ✓ 已应用
   // POST /api/device
   create(data: {
-    ismartid: string
+    ismartid?: string
+    ismartids?: string[]
     name: string
     icctv_auth_service_remote_port: number
     ssh_remote_port: number
     is_active?: boolean
     user_channels?: number[]
     all_channels?: number[]
+    channel_remarks?: Record<string, string>
   }) {
     return http.post<ApiResponse<Device>>('/device', data)
   },
@@ -35,12 +37,14 @@ export const DeviceApi = {
   update(
     data: {
       ismartid?: string
+      ismartids?: string[]
       name?: string
       icctv_auth_service_remote_port?: number
       ssh_remote_port?: number
       is_active?: boolean
       user_channels?: number[]
       all_channels?: number[]
+      channel_remarks?: Record<string, string>
     },
     id: number,
   ) {
@@ -61,4 +65,3 @@ export const DeviceStatsApi = {
     return http.get<ApiResponse<DeviceStats>>('/device/info')
   },
 }
-

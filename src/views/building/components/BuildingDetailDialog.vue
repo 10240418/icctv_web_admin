@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { message } from "ant-design-vue";
+import { SaveOutlined } from "@ant-design/icons-vue";
 import type { Building } from "@/model/building";
 import type { TableProps } from "ant-design-vue";
 import { BuildingBindApi, BuildingNvrBindApi } from "@/httpapis/api";
@@ -26,6 +27,8 @@ const boundNvrs = ref<Nvr[]>([]);
 const isLoading = ref(false);
 const isBindDialogVisible = ref(false);
 const bindDialogType = ref<"orangepi" | "nvr">("orangepi");
+const channelDrafts = ref<Record<number, number[]>>({});
+const savingChannelDeviceId = ref<number | null>(null);
 
 // 加載綁定的設備
 const loadBoundDevices = async () => {
@@ -40,6 +43,18 @@ const loadBoundDevices = async () => {
     boundOrangepis.value = Array.isArray(orangepiRes.data.data)
       ? orangepiRes.data.data
       : [];
+    channelDrafts.value = Object.fromEntries(
+      boundOrangepis.value.map((device) => [
+        device.id,
+        [...(
+          device.building_channels?.length
+            ? device.building_channels
+            : device.all_channels?.length
+              ? device.all_channels
+              : device.user_channels || []
+        )],
+      ])
+    );
 
     // 獲取綁定的 NVR - API 直接返回完整的 NVR 對象數組
     const nvrRes = await BuildingNvrBindApi.getByBuilding(
@@ -111,12 +126,49 @@ const handleNvrChange: TableProps["onChange"] = (pagination) => {
 // 解綁 OrangePi
 const unbindOrangepi = async (id: number) => {
   try {
-    await BuildingBindApi.unbind({ orangepi_id: id });
+    await BuildingBindApi.unbind({
+      building_id: props.buildingData?.id,
+      orangepi_id: id,
+    });
     message.success("解綁成功");
     await loadBoundDevices();
     emit("updated");
   } catch (error) {
     message.error("解綁失敗");
+  }
+};
+
+const channelOptionsFor = (device: Device) => {
+  const channels = device.all_channels?.length
+    ? device.all_channels
+    : device.user_channels || [];
+  return channels.map((channel) => ({
+    label: device.channel_remarks?.[`channel${channel}`]
+      ? `Channel ${channel} - ${device.channel_remarks[`channel${channel}`]}`
+      : `Channel ${channel}`,
+    value: channel,
+  }));
+};
+
+const saveBuildingChannels = async (device: Device) => {
+  const channels = channelDrafts.value[device.id] || [];
+  if (!props.buildingData?.id || channels.length === 0) {
+    message.warning("請至少保留一個可見頻道");
+    return;
+  }
+  savingChannelDeviceId.value = device.id;
+  try {
+    await BuildingBindApi.updateChannels({
+      building_id: props.buildingData.id,
+      orangepi_id: device.id,
+      channels,
+    });
+    message.success("大廈可見頻道已更新");
+    await loadBoundDevices();
+  } catch (error: any) {
+    message.error(error.response?.data?.error || "更新頻道失敗");
+  } finally {
+    savingChannelDeviceId.value = null;
   }
 };
 
@@ -157,8 +209,9 @@ const orangepiColumns = [
   },
   { title: "SSH端口", dataIndex: "ssh_remote_port", key: "ssh_remote_port" },
   { title: "啟用", dataIndex: "is_active", key: "is_active" },
+  { title: "大廈可見頻道", key: "building_channels", width: 300 },
   { title: "更新時間", dataIndex: "updatedAt", key: "updatedAt", width: 180 },
-  { title: "操作", key: "action", width: 100 },
+  { title: "操作", key: "action", width: 130 },
 ];
 
 const nvrColumns = [
@@ -180,7 +233,7 @@ const nvrColumns = [
   <a-modal
     :open="props.visible"
     :title="props.buildingData?.name || '建築詳情'"
-    width="900px"
+    width="1100px"
     :footer="null"
     @cancel="handleCancel"
   >
@@ -212,6 +265,7 @@ const nvrColumns = [
           :columns="orangepiColumns"
           :loading="isLoading"
           row-key="id"
+          :scroll="{ x: 1100 }"
           :pagination="{
             current: orangepiPagination.current,
             pageSize: orangepiPagination.pageSize,
@@ -226,15 +280,37 @@ const nvrColumns = [
                 {{ record.is_active ? "啟用" : "停用" }}
               </a-tag>
             </template>
+            <template v-else-if="column.key === 'building_channels'">
+              <a-select
+                v-model:value="channelDrafts[record.id]"
+                mode="multiple"
+                class="w-full"
+                placeholder="選擇可見頻道"
+                :options="channelOptionsFor(record)"
+              />
+            </template>
             <template v-else-if="column.key === 'action'">
-              <a-button
-                type="link"
-                danger
-                size="small"
-                @click="unbindOrangepi(record.id)"
-              >
-                解綁
-              </a-button>
+              <div class="flex items-center gap-1">
+                <a-tooltip title="保存可見頻道">
+                  <a-button
+                    type="text"
+                    shape="circle"
+                    :loading="savingChannelDeviceId === record.id"
+                    aria-label="保存可見頻道"
+                    @click="saveBuildingChannels(record)"
+                  >
+                    <template #icon><SaveOutlined /></template>
+                  </a-button>
+                </a-tooltip>
+                <a-button
+                  type="link"
+                  danger
+                  size="small"
+                  @click="unbindOrangepi(record.id)"
+                >
+                  解綁
+                </a-button>
+              </div>
             </template>
           </template>
         </a-table>
@@ -282,5 +358,3 @@ const nvrColumns = [
     />
   </a-modal>
 </template>
-
-

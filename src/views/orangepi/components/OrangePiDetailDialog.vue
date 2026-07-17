@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { message, Modal } from "ant-design-vue";
-import { CopyOutlined } from "@ant-design/icons-vue";
+import { CopyOutlined, SaveOutlined } from "@ant-design/icons-vue";
 import type { Device } from "@/model/device";
-import type { MediaMTXPath } from "@/model/orangepi";
 import type { Nvr } from "@/model/nvr";
-import { OrangePiRemoteApi, NvrApi } from "@/httpapis/api";
-import { AuthApi } from "@/httpapis/api";
+import type { MediaMTXPath } from "@/model/orangepi";
+import { AuthApi, DeviceApi, NvrApi, OrangePiRemoteApi } from "@/httpapis/api";
 
 interface Props {
   visible: boolean;
@@ -43,12 +42,27 @@ const pathFormData = ref({
   recordPartDuration: "30m",
 });
 
-// 同步NVR 相關
-const isSyncNvrDialogVisible = ref(false);
-const allNvrs = ref<Nvr[]>([]);
-const selectedNvrId = ref<number | null>(null);
-const isLoadingNvrs = ref(false);
-const isSyncing = ref(false);
+const rtspGroups = ref<Nvr[]>([]);
+const isLoadingRTSPGroups = ref(false);
+const selectedRTSPGroupID = ref<number>();
+const selectedRTSPPathIndex = ref<number>();
+const selectedRTSPGroup = computed(() =>
+  rtspGroups.value.find((group) => group.id === selectedRTSPGroupID.value)
+);
+const selectedRTSPPaths = computed(() => selectedRTSPGroup.value?.rtsp_urls || []);
+const selectedRTSPPath = computed(() => {
+  const index = selectedRTSPPathIndex.value;
+  return index === undefined ? undefined : selectedRTSPPaths.value[index];
+});
+
+// 將當前設備的 RTSP Paths 保存為伺服器分組。
+const isSaveGroupDialogVisible = ref(false);
+const groupName = ref("");
+const selectedPathNames = ref<string[]>([]);
+const isSavingGroup = ref(false);
+const savablePaths = computed(() =>
+  pathsList.value.filter((path) => /^rtsps?:\/\//i.test(path.source || ""))
+);
 
 const columns = [
   { title: "Path名稱", dataIndex: "name", key: "name", width: 120 },
@@ -92,6 +106,12 @@ const resetData = () => {
   pathsList.value = [];
   pathsTotal.value = 0;
   currentPage.value = 0;
+  isSaveGroupDialogVisible.value = false;
+  groupName.value = "";
+  selectedPathNames.value = [];
+  rtspGroups.value = [];
+  selectedRTSPGroupID.value = undefined;
+  selectedRTSPPathIndex.value = undefined;
 };
 
 const initializeData = async () => {
@@ -270,6 +290,8 @@ const showAddPathDialog = () => {
     recordPath: "./recordings/%path/%Y-%m-%d_%H-%M-%S",
     recordPartDuration: "30m",
   };
+  resetRTSPSelection();
+  void loadRTSPGroups();
   isPathDialogVisible.value = true;
 };
 
@@ -312,6 +334,8 @@ const showEditPathDialog = async (pathName: string) => {
       recordPartDuration: conf.recordPartDuration || "30m",
     };
 
+    resetRTSPSelection();
+    void loadRTSPGroups();
     isPathDialogVisible.value = true;
 
     // 如果 source 為空，提示用戶
@@ -326,6 +350,70 @@ const showEditPathDialog = async (pathName: string) => {
   } finally {
     isLoading.value = false;
   }
+};
+
+const loadRTSPGroups = async () => {
+  isLoadingRTSPGroups.value = true;
+  try {
+    const response = await NvrApi.list();
+    const data = response.data.data as Nvr[] | { items: Nvr[] } | Nvr;
+    rtspGroups.value = Array.isArray(data)
+      ? data
+      : "items" in data
+        ? data.items
+        : data
+          ? [data]
+          : [];
+  } catch (error: any) {
+    message.error(`載入 RTSP 組失敗: ${error.response?.data?.error || error.message}`);
+    rtspGroups.value = [];
+  } finally {
+    isLoadingRTSPGroups.value = false;
+  }
+};
+
+const resetRTSPSelection = () => {
+  selectedRTSPGroupID.value = undefined;
+  selectedRTSPPathIndex.value = undefined;
+};
+
+const rtspPathName = (path: Nvr["rtsp_urls"][number]) =>
+  path.path || (path.channel ? `channel${path.channel}` : "未命名");
+
+const handleRTSPGroupChange = () => {
+  selectedRTSPPathIndex.value = undefined;
+};
+
+const applySelectedRTSPPath = () => {
+  const path = selectedRTSPPath.value;
+  if (!path) return;
+
+  pathFormData.value.source = path.url;
+  if (pathDialogMode.value === "add" && !pathFormData.value.name.trim()) {
+    pathFormData.value.name = rtspPathName(path);
+  }
+};
+
+const syncSelectedRTSPRemark = async () => {
+  if (!props.device || !selectedRTSPPath.value) return;
+
+  const selectedPath = selectedRTSPPath.value;
+  if (selectedPath.url.trim() !== pathFormData.value.source.trim()) return;
+
+  const channelMatch = pathFormData.value.name.trim().match(/^channel(\d+)$/i);
+  const remark = selectedPath.remark?.trim();
+  if (!channelMatch?.[1] || !remark) return;
+
+  await DeviceApi.update(
+    {
+      channel_remarks: {
+        ...(props.device.channel_remarks || {}),
+        [`channel${channelMatch[1]}`]: remark,
+      },
+    },
+    props.device.id
+  );
+  emit("refreshList");
 };
 
 const handlePathSubmit = async () => {
@@ -381,6 +469,12 @@ const handlePathSubmit = async () => {
       });
       message.success("更新Path成功");
     }
+
+    try {
+      await syncSelectedRTSPRemark();
+    } catch (error: any) {
+      message.warning(`Path 已更新，但頻道說明同步失敗: ${error.response?.data?.error || error.message}`);
+    }
     isPathDialogVisible.value = false;
     // 刷新列表
     await loadPathsList(currentPage.value);
@@ -425,224 +519,93 @@ const handleDeletePath = (pathName: string) => {
   });
 };
 
-// 加載所有NVR列表
-const loadAllNvrs = async () => {
-  isLoadingNvrs.value = true;
-  try {
-    const response = await NvrApi.list();
-    const data = response.data.data;
-    if (Array.isArray(data)) {
-      allNvrs.value = data;
-    } else if ("items" in data) {
-      allNvrs.value = data.items;
-    } else {
-      allNvrs.value = data ? [data] : [];
-    }
-  } catch (error: any) {
-    message.error(
-      `加載NVR列表失敗: ${error.response?.data?.error || error.message}`
-    );
-    allNvrs.value = [];
-  } finally {
-    isLoadingNvrs.value = false;
-  }
-};
-
-// 顯示同步NVR對話框
-const showSyncNvrDialog = async () => {
+const showSaveGroupDialog = async () => {
   if (!staffToken.value) {
     message.warning("請先生成Token");
     return;
   }
-  selectedNvrId.value = null;
-  await loadAllNvrs();
-  isSyncNvrDialogVisible.value = true;
-};
-
-// 格式化NVR顯示
-const formatNvr = (nvr: Nvr) => {
-  return `ID: ${nvr.id} | ${nvr.name} | ${nvr.url} | RTSP通道數: ${
-    nvr.rtsp_urls?.length || 0
-  }`;
-};
-
-// 處理NVR選擇
-const handleNvrSelect = (nvrId: number) => {
-  selectedNvrId.value = selectedNvrId.value === nvrId ? null : nvrId;
-};
-
-// 從path名稱中提取通道號（例如：channel1 -> 1）
-const extractChannelFromPathName = (pathName: string): number | null => {
-  const match = pathName.match(/^channel(\d+)$/i);
-  return match && match[1] ? parseInt(match[1], 10) : null;
-};
-
-// 執行同步NVR
-const handleSyncNvr = async () => {
-  if (!props.device || !staffToken.value) {
-    message.error("設備信息或Token缺失");
-    return;
-  }
-
-  if (!selectedNvrId.value) {
-    message.warning("請選擇一個NVR");
-    return;
-  }
-
-  const selectedNvr = allNvrs.value.find((n) => n.id === selectedNvrId.value);
-  if (!selectedNvr) {
-    message.error("選擇的NVR不存在");
-    return;
-  }
-
-  if (!selectedNvr.rtsp_urls || selectedNvr.rtsp_urls.length === 0) {
-    message.warning(`NVR "${selectedNvr.name}" 沒有配置RTSP URLs`);
-    return;
-  }
-
-  // 確保paths列表已加載
   if (pathsList.value.length === 0) {
     await loadPathsList(0);
   }
+  if (savablePaths.value.length === 0) {
+    message.warning("當前設備沒有可保存的 RTSP Path");
+    return;
+  }
+  groupName.value = `${props.device?.name || "OrangePi"} RTSP`;
+  selectedPathNames.value = savablePaths.value.map((path) => path.name);
+  isSaveGroupDialogVisible.value = true;
+};
 
-  Modal.confirm({
-    title: `確定要同步NVR "${selectedNvr.name}" 嗎？`,
-    content: `此操作將對比NVR的${selectedNvr.rtsp_urls.length}個RTSP通道，更新匹配的Path URL，新增缺失的Path，保留現有的其他Path。`,
-    okText: "確定同步",
-    okType: "primary",
-    onOk: async () => {
-      isSyncing.value = true;
-      try {
-        // 創建通道號到現有Path的映射
-        const existingPathsMap = new Map<number, MediaMTXPath>();
-        pathsList.value.forEach((path) => {
-          const channel = extractChannelFromPathName(path.name);
-          if (channel !== null) {
-            existingPathsMap.set(channel, path);
-          }
-        });
+const saveCurrentPathsAsGroup = async () => {
+  const name = groupName.value.trim();
+  if (!name) {
+    message.warning("請輸入 RTSP 組名稱");
+    return;
+  }
+  const selected = new Set(selectedPathNames.value);
+  const paths = savablePaths.value.filter((path) => selected.has(path.name));
+  if (paths.length === 0) {
+    message.warning("請至少選擇一個 RTSP Path");
+    return;
+  }
 
-        // 創建NVR RTSP URLs的通道號映射
-        const nvrChannelsMap = new Map<
-          number,
-          { channel: number; url: string }
-        >();
-        selectedNvr.rtsp_urls.forEach((rtspUrl) => {
-          nvrChannelsMap.set(rtspUrl.channel, rtspUrl);
-        });
-
-        const updatePromises: Promise<any>[] = [];
-        const addPromises: Promise<any>[] = [];
-        let updateCount = 0;
-        let addCount = 0;
-
-        // 處理每個NVR的RTSP URL
-        selectedNvr.rtsp_urls.forEach((rtspUrl) => {
-          const existingPath = existingPathsMap.get(rtspUrl.channel);
-          const pathName = `channel${rtspUrl.channel}`;
-
-          if (existingPath) {
-            // 如果Path已存在，更新URL
-            updatePromises.push(
-              OrangePiRemoteApi.updatePath({
-                id: props.device!.id,
-                token: staffToken.value,
-                name: pathName,
-                config: {
-                  source: rtspUrl.url,
-                  sourceOnDemand: false,
-                  record: false,
-                },
-              })
-                .then(() => {
-                  updateCount++;
-                })
-                .catch((error) => {
-                  console.error(`更新Path "${pathName}" 失敗:`, error);
-                  throw error;
-                })
-            );
-          } else {
-            // 如果Path不存在，新增
-            addPromises.push(
-              OrangePiRemoteApi.addPath({
-                id: props.device!.id,
-                token: staffToken.value,
-                name: pathName,
-                config: {
-                  source: rtspUrl.url,
-                  sourceOnDemand: false,
-                  record: false,
-                },
-              })
-                .then(() => {
-                  addCount++;
-                })
-                .catch((error) => {
-                  console.error(`添加Path "${pathName}" 失敗:`, error);
-                  throw error;
-                })
-            );
-          }
-        });
-
-        // 執行所有更新和新增操作
-        await Promise.all([...updatePromises, ...addPromises]);
-
-        const summary = [];
-        if (updateCount > 0) summary.push(`更新${updateCount}個`);
-        if (addCount > 0) summary.push(`新增${addCount}個`);
-
-        message.success(
-          `同步成功！${summary.join("，")}RTSP通道${
-            summary.length > 0 ? "。" : ""
-          }`
-        );
-        isSyncNvrDialogVisible.value = false;
-        // 刷新列表
-        await loadPathsList(0);
-      } catch (error: any) {
-        const errorMsg = error.response?.data?.error || error.message;
-        message.error(`同步失敗: ${errorMsg}`);
-        console.error("Sync NVR error:", error);
-      } finally {
-        isSyncing.value = false;
-      }
-    },
-  });
+  isSavingGroup.value = true;
+  try {
+    await NvrApi.create({
+      name,
+      url: "",
+      building_id: 0,
+      rtsp_urls: paths.map((path) => {
+        const match = path.name.match(/^channel(\d+)$/i);
+        return {
+          channel: match?.[1] ? Number(match[1]) : 0,
+          path: path.name,
+          url: path.source!,
+          remark: props.device?.channel_remarks?.[path.name] || "",
+        };
+      }),
+    });
+    message.success(`已保存 RTSP 組「${name}」，共 ${paths.length} 個 Path`);
+    isSaveGroupDialogVisible.value = false;
+  } catch (error: any) {
+    message.error(`保存失敗: ${error.response?.data?.error || error.message}`);
+  } finally {
+    isSavingGroup.value = false;
+  }
 };
 
 const handleClose = () => {
   emit("update:visible", false);
 };
 
-// 複製RTSP地址到剪貼板
-const copyRtspUrl = async (url: string) => {
-  if (!url) {
-    message.warning("RTSP地址為空");
+const copyToClipboard = async (value: string, label: string) => {
+  if (!value) {
+    message.warning(`${label}為空`);
     return;
   }
 
   try {
-    await navigator.clipboard.writeText(url);
-    message.success("RTSP地址已複製到剪貼板");
+    await navigator.clipboard.writeText(value);
+    message.success(`${label}已複製到剪貼板`);
   } catch (error) {
-    // 降級方案：使用傳統方法
     const textArea = document.createElement("textarea");
-    textArea.value = url;
+    textArea.value = value;
     textArea.style.position = "fixed";
     textArea.style.opacity = "0";
     document.body.appendChild(textArea);
     textArea.select();
     try {
       document.execCommand("copy");
-      message.success("RTSP地址已複製到剪貼板");
+      message.success(`${label}已複製到剪貼板`);
     } catch (err) {
       message.error("複製失敗，請手動複製");
     }
     document.body.removeChild(textArea);
   }
 };
+
+const copyRtspUrl = (url: string) => copyToClipboard(url, "RTSP地址");
+const copyPathName = (name: string) => copyToClipboard(name, "Path名稱");
 </script>
 
 <template>
@@ -672,10 +635,11 @@ const copyRtspUrl = async (url: string) => {
             <a-tooltip :title="!staffToken ? '請先切換到其他標籤頁生成Token' : ''">
               <a-button
                 type="default"
-                @click="showSyncNvrDialog"
+                @click="showSaveGroupDialog"
                 :disabled="!staffToken"
               >
-                同步NVR
+                <template #icon><SaveOutlined /></template>
+                保存為 RTSP 組
               </a-button>
             </a-tooltip>
             <a-button
@@ -820,7 +784,17 @@ const copyRtspUrl = async (url: string) => {
             size="small"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'source'">
+              <template v-if="column.key === 'name'">
+                <div class="flex items-center gap-1">
+                  <span>{{ record.name }}</span>
+                  <a-tooltip :title="`複製 ${record.name}`">
+                    <a-button type="text" size="small" @click="copyPathName(record.name)">
+                      <template #icon><CopyOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
+                </div>
+              </template>
+              <template v-else-if="column.key === 'source'">
                 <div
                   v-if="record.source"
                   class="flex items-center gap-2"
@@ -869,68 +843,38 @@ const copyRtspUrl = async (url: string) => {
       </a-tabs>
     </a-spin>
 
-    <!-- 同步NVR對話框 -->
+    <!-- 將當前設備 Paths 保存為伺服器 RTSP 組 -->
     <a-modal
-      v-model:open="isSyncNvrDialogVisible"
-      title="同步NVR"
+      v-model:open="isSaveGroupDialogVisible"
+      title="保存為 RTSP 組"
       width="700px"
+      :confirm-loading="isSavingGroup"
+      @ok="saveCurrentPathsAsGroup"
     >
-      <a-spin :spinning="isLoadingNvrs">
-        <div class="space-y-2 max-h-96 overflow-y-auto">
-          <div
-            v-for="nvr in allNvrs"
-            :key="nvr.id"
-            class="p-3 border rounded-lg cursor-pointer transition-all hover:border-blue-400"
-            :class="{
-              'bg-gray-100 border-blue-500': selectedNvrId === nvr.id,
-              'bg-white': selectedNvrId !== nvr.id,
-            }"
-            @click="handleNvrSelect(nvr.id)"
-          >
-            <div class="flex items-center justify-between">
-              <span class="text-sm">
-                {{ formatNvr(nvr) }}
-              </span>
-              <a-tag
-                v-if="selectedNvrId === nvr.id"
-                color="blue"
+      <a-form layout="vertical">
+        <a-form-item label="組名稱" required>
+          <a-input v-model:value="groupName" />
+        </a-form-item>
+        <a-form-item label="選擇 Paths" required>
+          <a-checkbox-group v-model:value="selectedPathNames" class="w-full">
+            <div class="max-h-[380px] divide-y divide-gray-200 overflow-y-auto border-y border-gray-200">
+              <label
+                v-for="path in savablePaths"
+                :key="path.name"
+                class="flex cursor-pointer items-start gap-3 py-3"
               >
-                <template #icon>
-                  <span>✓</span>
-                </template>
-                已選
-              </a-tag>
+                <a-checkbox :value="path.name" class="mt-0.5" />
+                <span class="min-w-0 flex-1">
+                  <span class="block font-medium">{{ path.name }}</span>
+                  <code class="block truncate text-xs text-muted" :title="path.source">
+                    {{ path.source }}
+                  </code>
+                </span>
+              </label>
             </div>
-          </div>
-
-          <a-empty
-            v-if="allNvrs.length === 0 && !isLoadingNvrs"
-            description="暫無可用NVR"
-          />
-        </div>
-      </a-spin>
-
-      <template #footer>
-        <div class="flex justify-between items-center">
-          <span class="text-sm text-gray-500">
-            {{ selectedNvrId ? `已選擇 NVR ID: ${selectedNvrId}` : '請選擇一個NVR' }}
-          </span>
-          <div class="space-x-2">
-            <a-button @click="isSyncNvrDialogVisible = false">
-              取消
-            </a-button>
-            <a-button
-              type="primary"
-              danger
-              :loading="isSyncing"
-              :disabled="!selectedNvrId"
-              @click="handleSyncNvr"
-            >
-              確定同步
-            </a-button>
-          </div>
-        </div>
-      </template>
+          </a-checkbox-group>
+        </a-form-item>
+      </a-form>
     </a-modal>
 
     <!-- Path 新增/編輯對話框 -->
@@ -971,6 +915,38 @@ const copyRtspUrl = async (url: string) => {
           </div>
         </a-form-item>
 
+        <a-form-item label="RTSP 組">
+          <a-select
+            v-model:value="selectedRTSPGroupID"
+            placeholder="選擇 RTSP 組"
+            :loading="isLoadingRTSPGroups"
+            allow-clear
+            @change="handleRTSPGroupChange"
+          >
+            <a-select-option v-for="group in rtspGroups" :key="group.id" :value="group.id">
+              {{ group.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+
+        <a-form-item label="組內 Path">
+          <a-select
+            v-model:value="selectedRTSPPathIndex"
+            placeholder="選擇 RTSP 地址"
+            :disabled="!selectedRTSPGroup"
+            allow-clear
+            @change="applySelectedRTSPPath"
+          >
+            <a-select-option
+              v-for="(path, index) in selectedRTSPPaths"
+              :key="`${rtspPathName(path)}-${index}`"
+              :value="index"
+            >
+              {{ rtspPathName(path) }}{{ path.remark ? ` - ${path.remark}` : "" }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+
         <a-alert
           message="配置說明"
           description="按需拉流和錄像功能已關閉，僅實時拉流轉發"
@@ -994,4 +970,3 @@ const copyRtspUrl = async (url: string) => {
   align-items: center;
 }
 </style>
-

@@ -69,4 +69,11 @@ export interface PublicTokenResponse {
   orangepis: OrangePiTokenData[]
 }
 
+export interface OrangePiTokenDataV2 extends OrangePiTokenData {
+  channel_remarks: Record<string, string>
+}
+
+export interface PublicTokenV2Response {
+  orangepis: OrangePiTokenDataV2[]
+}
 

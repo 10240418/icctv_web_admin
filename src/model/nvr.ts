@@ -13,12 +13,13 @@ export interface Nvr extends ModelFields {
     password: string
   }>
   rtsp_urls: Array<{
-    channel: number
+    channel?: number
+    path?: string
     url: string
+    remark?: string
   }>
 }
 
 export type NvrList = PaginatedResult<Nvr>
-
 
 

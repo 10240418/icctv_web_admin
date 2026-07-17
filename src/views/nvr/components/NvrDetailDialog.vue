@@ -78,7 +78,10 @@ const loadNvrData = () => {
     ? { ...props.nvr.admin_user }
     : { name: "", password: "" };
   usersList.value = props.nvr.users ? [...props.nvr.users] : [];
-  rtspUrlsList.value = props.nvr.rtsp_urls ? [...props.nvr.rtsp_urls] : [];
+  rtspUrlsList.value = (props.nvr.rtsp_urls || []).map((item) => ({
+    channel: item.channel || 0,
+    url: item.url,
+  }));
 };
 
 // ========== 管理員賬戶管理 ==========
@@ -327,7 +330,10 @@ const refreshNvrData = async () => {
         ? { ...nvr.admin_user }
         : { name: "", password: "" };
       usersList.value = nvr.users ? [...nvr.users] : [];
-      rtspUrlsList.value = nvr.rtsp_urls ? [...nvr.rtsp_urls] : [];
+      rtspUrlsList.value = (nvr.rtsp_urls || []).map((item: Nvr["rtsp_urls"][number]) => ({
+        channel: item.channel || 0,
+        url: item.url,
+      }));
     }
 
     emit("refreshList");
@@ -571,4 +577,3 @@ const handleClose = () => {
   margin-top: 0.25rem;
 }
 </style>
-

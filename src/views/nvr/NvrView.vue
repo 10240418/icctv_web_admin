@@ -1,68 +1,65 @@
 <script setup lang="ts">
-import { ref, onMounted, onActivated } from "vue";
-import { Modal } from "ant-design-vue";
-import { useNvrData } from "./useNvr";
+import { onActivated, onMounted, ref } from "vue";
+import { message, Modal } from "ant-design-vue";
+import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons-vue";
 import type { Nvr } from "@/model/nvr";
-import NvrEditDialog from "./components/NvrEditDialog.vue";
-import NvrDetailDialog from "./components/NvrDetailDialog.vue";
 import { formatDate } from "@/utils/dateFormat";
+import NvrEditDialog from "./components/NvrEditDialog.vue";
+import { useNvrData } from "./useNvr";
 
 const { data, columns, isLoading, searchKeyword, list, remove, fetch, search } =
   useNvrData();
 
 const isEditDialogVisible = ref(false);
 const editDialogMode = ref<"create" | "edit">("create");
-const selectedNvrData = ref<Nvr | undefined>(undefined);
-const isDetailDialogVisible = ref(false);
-const detailNvr = ref<Nvr | undefined>(undefined);
+const selectedGroup = ref<Nvr>();
 
-const showAddNvrDialog = () => {
+const showAddDialog = () => {
   editDialogMode.value = "create";
-  selectedNvrData.value = undefined;
+  selectedGroup.value = undefined;
   isEditDialogVisible.value = true;
 };
 
-const showDetailDialog = async (nvr: Nvr) => {
-  detailNvr.value = await fetch(nvr.id);
-  isDetailDialogVisible.value = true;
-};
-
-const editNvr = async (nvr: Nvr) => {
+const editGroup = async (group: Nvr) => {
   editDialogMode.value = "edit";
-  selectedNvrData.value = await fetch(nvr.id);
+  selectedGroup.value = await fetch(group.id);
   isEditDialogVisible.value = true;
 };
 
-const deleteNvr = async (id: number) => {
-  await remove(id);
-};
-
-const confirmDeleteNvr = (id: number) => {
+const confirmDelete = (group: Nvr) => {
   Modal.confirm({
-    title: "確定要刪除這個 NVR 嗎？",
-    onOk: () => deleteNvr(id),
+    title: `刪除 RTSP 組「${group.name}」？`,
+    content: "只會刪除伺服器保存的地址組，不會刪除 OrangePi 上現有的 MediaMTX Paths。",
+    okText: "刪除",
+    okType: "danger",
+    onOk: () => remove(group.id),
   });
 };
 
-const handleCreated = () => {
-  list();
+const pathName = (item: Nvr["rtsp_urls"][number]) =>
+  item.path || (item.channel ? `channel${item.channel}` : "未命名");
+
+const copyPathName = async (name: string) => {
+  try {
+    await navigator.clipboard.writeText(name);
+    message.success("Path 名稱已複製到剪貼板");
+  } catch {
+    const textArea = document.createElement("textarea");
+    textArea.value = name;
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textArea);
+    message.success("Path 名稱已複製到剪貼板");
+  }
 };
 
-const handleUpdated = () => {
-  list();
-};
+const handleSearch = (value?: string) => search(value?.trim() || "");
 
-const handleSearch = (value?: string) => {
-  search(value?.trim() || "");
-};
-
-onMounted(() => {
-  list();
-});
-
-onActivated(() => {
-  list();
-});
+onMounted(list);
+onActivated(list);
 </script>
 
 <template>
@@ -70,72 +67,76 @@ onActivated(() => {
     <NvrEditDialog
       :visible="isEditDialogVisible"
       :mode="editDialogMode"
-      :nvr-data="selectedNvrData"
+      :nvr-data="selectedGroup"
       @update:visible="isEditDialogVisible = $event"
-      @created="handleCreated"
-      @updated="handleUpdated"
+      @created="list"
+      @updated="list"
     />
 
-    <NvrDetailDialog
-      :visible="isDetailDialogVisible"
-      :nvr="detailNvr"
-      @update:visible="isDetailDialogVisible = $event"
-      @refresh-list="handleUpdated"
-    />
-
-    <div
-      class="flex items-center justify-between border-b border-gray-300 pb-4">
+    <div class="flex items-center justify-between border-b border-gray-300 pb-4">
       <div class="flex items-baseline gap-3">
-        <h2 class="text-2xl font-semibold text-foreground">NVR 管理</h2>
-        <p class="text-sm text-muted">NVR Management</p>
+        <h2 class="text-2xl font-semibold text-foreground">RTSP 組管理</h2>
+        <p class="text-sm text-muted">RTSP Groups</p>
       </div>
     </div>
 
-    <div class="flex w-full justify-between items-center gap-3">
+    <div class="flex w-full items-center justify-between gap-3">
       <a-input-search
         v-model:value="searchKeyword"
-        placeholder="搜尋 NVR 名稱或地址"
-        style="width: 250px"
+        placeholder="搜尋組名、Path 或 RTSP 地址"
+        class="max-w-sm"
         @search="handleSearch"
         @pressEnter="handleSearch(searchKeyword)"
       />
-      <a-button
-        type="primary"
-        @click="showAddNvrDialog"
-      >新增 NVR</a-button>
+      <a-button type="primary" @click="showAddDialog">
+        <template #icon><PlusOutlined /></template>
+        新增 RTSP 組
+      </a-button>
     </div>
 
     <a-table
       :data-source="data"
       :columns="columns"
       :loading="isLoading"
-      :pagination="{
-        position: ['bottomRight'],
-        hideOnSinglePage: false,
-        showSizeChanger: true,
-        defaultPageSize: 10,
-      }"
       row-key="id"
+      :scroll="{ x: 1050 }"
+      :pagination="{ defaultPageSize: 10, showSizeChanger: true }"
     >
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'updatedAt'">
+        <template v-if="column.key === 'path_count'">
+          {{ record.rtsp_urls?.length || 0 }}
+        </template>
+        <template v-else-if="column.key === 'paths'">
+          <div class="flex max-w-[420px] flex-wrap gap-1">
+            <span v-for="item in record.rtsp_urls || []" :key="pathName(item)" class="inline-flex items-center">
+              <a-tag>{{ pathName(item) }}</a-tag>
+              <a-tooltip :title="`複製 ${pathName(item)}`">
+                <a-button type="text" size="small" @click="copyPathName(pathName(item))">
+                  <template #icon><CopyOutlined /></template>
+                </a-button>
+              </a-tooltip>
+            </span>
+            <span v-if="!record.rtsp_urls?.length" class="text-muted">無</span>
+          </div>
+        </template>
+        <template v-else-if="column.key === 'updatedAt'">
           {{ formatDate(record.updatedAt) }}
         </template>
         <template v-else-if="column.key === 'action'">
-          <span>
-            <a @click="showDetailDialog(record)">詳情</a>
-            <a-divider type="vertical" />
-            <a @click="editNvr(record)">編輯</a>
-            <a-divider type="vertical" />
-            <a
-              style="color: lightcoral;"
-              @click="confirmDeleteNvr(record.id)"
-            >刪除</a>
-          </span>
+          <div class="flex items-center gap-1">
+            <a-tooltip title="編輯 RTSP 組">
+              <a-button type="text" shape="circle" @click="editGroup(record)">
+                <template #icon><EditOutlined /></template>
+              </a-button>
+            </a-tooltip>
+            <a-tooltip title="刪除 RTSP 組">
+              <a-button type="text" danger shape="circle" @click="confirmDelete(record)">
+                <template #icon><DeleteOutlined /></template>
+              </a-button>
+            </a-tooltip>
+          </div>
         </template>
       </template>
     </a-table>
   </div>
 </template>
-
-
