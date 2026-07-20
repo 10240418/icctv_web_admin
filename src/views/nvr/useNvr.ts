@@ -148,6 +148,7 @@ export const useNvrData = () => {
   return {
     isLoading: sharedState.isLoading,
     data: sharedState.data,
+    rawData: sharedState.rawData,
     searchKeyword: sharedState.searchKeyword,
     columns,
     list,

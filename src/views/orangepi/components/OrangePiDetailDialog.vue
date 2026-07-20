@@ -28,6 +28,7 @@ const pathsTotal = ref(0);
 const currentPage = ref(0);
 const pageSize = ref(50);
 const isLoadingPaths = ref(false); // 單獨的 paths 加載狀態
+const isCopyingAllPathUrls = ref(false);
 
 // 新增/編輯 Path 相關
 const isPathDialogVisible = ref(false);
@@ -606,6 +607,52 @@ const copyToClipboard = async (value: string, label: string) => {
 
 const copyRtspUrl = (url: string) => copyToClipboard(url, "RTSP地址");
 const copyPathName = (name: string) => copyToClipboard(name, "Path名稱");
+
+const copyAllPathUrls = async () => {
+  if (!props.device || !staffToken.value) {
+    message.warning("請先生成Token");
+    return;
+  }
+
+  isCopyingAllPathUrls.value = true;
+  try {
+    const firstPageResponse = await OrangePiRemoteApi.listPaths({
+      id: props.device.id,
+      token: staffToken.value,
+      page: 0,
+      items_per_page: pageSize.value,
+    });
+    const firstPage = firstPageResponse.data.data;
+    const totalPages = Math.ceil((firstPage.itemsTotal || 0) / pageSize.value);
+    const remainingPages = await Promise.all(
+      Array.from({ length: Math.max(totalPages - 1, 0) }, (_, index) =>
+        OrangePiRemoteApi.listPaths({
+          id: props.device!.id,
+          token: staffToken.value,
+          page: index + 1,
+          items_per_page: pageSize.value,
+        }),
+      ),
+    );
+    const urls = [
+      ...(firstPage.items || []),
+      ...remainingPages.flatMap((response) => response.data.data.items || []),
+    ]
+      .map((path) => path.source?.trim())
+      .filter((url): url is string => Boolean(url));
+
+    if (urls.length === 0) {
+      message.warning("暫無可複製的 RTSP 地址");
+      return;
+    }
+
+    await copyToClipboard([...new Set(urls)].join("\n"), `${new Set(urls).size} 個 RTSP地址`);
+  } catch (error: any) {
+    message.error(`複製全部 RTSP 地址失敗: ${error.response?.data?.error || error.message}`);
+  } finally {
+    isCopyingAllPathUrls.value = false;
+  }
+};
 </script>
 
 <template>
@@ -631,6 +678,14 @@ const copyPathName = (name: string) => copyToClipboard(name, "Path名稱");
               :loading="isLoadingPaths"
             >
               刷新列表
+            </a-button>
+            <a-button
+              :disabled="!staffToken"
+              :loading="isCopyingAllPathUrls"
+              @click="copyAllPathUrls"
+            >
+              <template #icon><CopyOutlined /></template>
+              複製全部 URL
             </a-button>
             <a-tooltip :title="!staffToken ? '請先切換到其他標籤頁生成Token' : ''">
               <a-button

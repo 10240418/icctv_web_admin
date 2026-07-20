@@ -7,7 +7,7 @@ import { formatDate } from "@/utils/dateFormat";
 import NvrEditDialog from "./components/NvrEditDialog.vue";
 import { useNvrData } from "./useNvr";
 
-const { data, columns, isLoading, searchKeyword, list, remove, fetch, search } =
+const { data, rawData, columns, isLoading, searchKeyword, list, remove, fetch, search } =
   useNvrData();
 
 const isEditDialogVisible = ref(false);
@@ -56,6 +56,35 @@ const copyPathName = async (name: string) => {
   }
 };
 
+const copyAllRtspUrls = async () => {
+  const urls = [...new Set(
+    rawData.value
+      .flatMap((group) => group.rtsp_urls || [])
+      .map((item) => item.url?.trim())
+      .filter((url): url is string => Boolean(url)),
+  )];
+
+  if (urls.length === 0) {
+    message.warning("暫無可複製的 RTSP 地址");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(urls.join("\n"));
+    message.success(`已複製 ${urls.length} 個 RTSP 地址到剪貼板`);
+  } catch {
+    const textArea = document.createElement("textarea");
+    textArea.value = urls.join("\n");
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textArea);
+    message.success(`已複製 ${urls.length} 個 RTSP 地址到剪貼板`);
+  }
+};
+
 const handleSearch = (value?: string) => search(value?.trim() || "");
 
 onMounted(list);
@@ -88,10 +117,16 @@ onActivated(list);
         @search="handleSearch"
         @pressEnter="handleSearch(searchKeyword)"
       />
-      <a-button type="primary" @click="showAddDialog">
-        <template #icon><PlusOutlined /></template>
-        新增 RTSP 組
-      </a-button>
+      <div class="flex items-center gap-2">
+        <a-button @click="copyAllRtspUrls">
+          <template #icon><CopyOutlined /></template>
+          複製全部 URL
+        </a-button>
+        <a-button type="primary" @click="showAddDialog">
+          <template #icon><PlusOutlined /></template>
+          新增 RTSP 組
+        </a-button>
+      </div>
     </div>
 
     <a-table
