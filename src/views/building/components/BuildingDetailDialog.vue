@@ -1,12 +1,12 @@
 <script setup lang="ts">
+import { catalogueChannels, channelLabel } from "@/views/orangepi/channelCatalogue";
 import { computed, ref, watch } from "vue";
 import { message } from "ant-design-vue";
 import { SaveOutlined } from "@ant-design/icons-vue";
 import type { Building } from "@/model/building";
 import type { TableProps } from "ant-design-vue";
-import { BuildingBindApi, BuildingNvrBindApi } from "@/httpapis/api";
+import { BuildingBindApi } from "@/httpapis/api";
 import type { Device } from "@/model/device";
-import type { Nvr } from "@/model/nvr";
 import BindDeviceDialog from "./BindDeviceDialog.vue";
 
 const props = defineProps<{
@@ -19,14 +19,10 @@ const emit = defineEmits<{
   updated: [];
 }>();
 
-const activeTab = ref<"orangepi" | "nvr">("orangepi");
 const orangepiPagination = ref({ current: 1, pageSize: 5 });
-const nvrPagination = ref({ current: 1, pageSize: 5 });
 const boundOrangepis = ref<Device[]>([]);
-const boundNvrs = ref<Nvr[]>([]);
 const isLoading = ref(false);
 const isBindDialogVisible = ref(false);
-const bindDialogType = ref<"orangepi" | "nvr">("orangepi");
 const channelDrafts = ref<Record<number, number[]>>({});
 const savingChannelDeviceId = ref<number | null>(null);
 
@@ -56,11 +52,6 @@ const loadBoundDevices = async () => {
       ])
     );
 
-    // 獲取綁定的 NVR - API 直接返回完整的 NVR 對象數組
-    const nvrRes = await BuildingNvrBindApi.getByBuilding(
-      props.buildingData.id
-    );
-    boundNvrs.value = Array.isArray(nvrRes.data.data) ? nvrRes.data.data : [];
   } catch (error) {
     console.error("加載綁定設備失敗:", error);
     message.error("加載綁定設備失敗");
@@ -75,8 +66,6 @@ watch(
     if (visible && props.buildingData) {
       loadBoundDevices();
       orangepiPagination.value = { current: 1, pageSize: 5 };
-      nvrPagination.value = { current: 1, pageSize: 5 };
-      activeTab.value = "orangepi";
     }
   }
 );
@@ -99,27 +88,11 @@ const pagedOrangepis = computed(() =>
   )
 );
 
-const pagedNvrs = computed(() =>
-  paginate(
-    boundNvrs.value,
-    nvrPagination.value.current,
-    nvrPagination.value.pageSize
-  )
-);
-
 const handleOrangepiChange: TableProps["onChange"] = (pagination) => {
   if (!pagination) return;
   orangepiPagination.value = {
     current: pagination.current ?? 1,
     pageSize: pagination.pageSize ?? orangepiPagination.value.pageSize,
-  };
-};
-
-const handleNvrChange: TableProps["onChange"] = (pagination) => {
-  if (!pagination) return;
-  nvrPagination.value = {
-    current: pagination.current ?? 1,
-    pageSize: pagination.pageSize ?? nvrPagination.value.pageSize,
   };
 };
 
@@ -139,13 +112,10 @@ const unbindOrangepi = async (id: number) => {
 };
 
 const channelOptionsFor = (device: Device) => {
-  const channels = device.all_channels?.length
-    ? device.all_channels
-    : device.user_channels || [];
-  return channels.map((channel) => ({
+  return catalogueChannels(device).map((channel) => ({
     label: device.channel_remarks?.[`channel${channel}`]
-      ? `Channel ${channel} - ${device.channel_remarks[`channel${channel}`]}`
-      : `Channel ${channel}`,
+      ? `${channelLabel(device, channel)} - ${device.channel_remarks[`channel${channel}`]}`
+      : channelLabel(device, channel),
     value: channel,
   }));
 };
@@ -172,20 +142,7 @@ const saveBuildingChannels = async (device: Device) => {
   }
 };
 
-// 解綁 NVR
-const unbindNvr = async (id: number) => {
-  try {
-    await BuildingNvrBindApi.unbind({ nvr_id: id });
-    message.success("解綁成功");
-    await loadBoundDevices();
-    emit("updated");
-  } catch (error) {
-    message.error("解綁失敗");
-  }
-};
-
-const showBindDialog = (type: "orangepi" | "nvr") => {
-  bindDialogType.value = type;
+const showBindDialog = () => {
   isBindDialogVisible.value = true;
 };
 
@@ -214,19 +171,6 @@ const orangepiColumns = [
   { title: "操作", key: "action", width: 130 },
 ];
 
-const nvrColumns = [
-  { title: "ID", dataIndex: "id", key: "id", width: 80 },
-  { title: "名稱", dataIndex: "name", key: "name" },
-  { title: "訪問地址", dataIndex: "url", key: "url" },
-  { title: "管理員賬號", dataIndex: ["admin_user", "name"], key: "admin_user" },
-  {
-    title: "管理員密碼",
-    dataIndex: ["admin_user", "password"],
-    key: "admin_password",
-  },
-  { title: "更新日期", dataIndex: "updatedAt", key: "updatedAt", width: 180 },
-  { title: "操作", key: "action", width: 100 },
-];
 </script>
 
 <template>
@@ -237,122 +181,74 @@ const nvrColumns = [
     :footer="null"
     @cancel="handleCancel"
   >
-    <a-tabs v-model:activeKey="activeTab">
-      <template #tabBarExtraContent>
-        <div class="flex gap-2">
-          <a-button
-            v-if="activeTab === 'orangepi'"
-            type="primary"
-            @click="showBindDialog('orangepi')"
-          >
-            添加 OrangePi
-          </a-button>
-          <a-button
-            v-if="activeTab === 'nvr'"
-            type="primary"
-            @click="showBindDialog('nvr')"
-          >
-            添加 NVR
-          </a-button>
-        </div>
-      </template>
-      <a-tab-pane
-        key="orangepi"
-        tab="OrangePi 設備"
-      >
-        <a-table
-          :data-source="pagedOrangepis"
-          :columns="orangepiColumns"
-          :loading="isLoading"
-          row-key="id"
-          :scroll="{ x: 1100 }"
-          :pagination="{
-            current: orangepiPagination.current,
-            pageSize: orangepiPagination.pageSize,
-            total: boundOrangepis.length,
-            showSizeChanger: true,
-          }"
-          @change="handleOrangepiChange"
-        >
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'is_active'">
-              <a-tag :color="record.is_active ? 'green' : 'red'">
-                {{ record.is_active ? "啟用" : "停用" }}
-              </a-tag>
-            </template>
-            <template v-else-if="column.key === 'building_channels'">
-              <a-select
-                v-model:value="channelDrafts[record.id]"
-                mode="multiple"
-                class="w-full"
-                placeholder="選擇可見頻道"
-                :options="channelOptionsFor(record)"
-              />
-            </template>
-            <template v-else-if="column.key === 'action'">
-              <div class="flex items-center gap-1">
-                <a-tooltip title="保存可見頻道">
-                  <a-button
-                    type="text"
-                    shape="circle"
-                    :loading="savingChannelDeviceId === record.id"
-                    aria-label="保存可見頻道"
-                    @click="saveBuildingChannels(record)"
-                  >
-                    <template #icon><SaveOutlined /></template>
-                  </a-button>
-                </a-tooltip>
-                <a-button
-                  type="link"
-                  danger
-                  size="small"
-                  @click="unbindOrangepi(record.id)"
-                >
-                  解綁
-                </a-button>
-              </div>
-            </template>
-          </template>
-        </a-table>
-      </a-tab-pane>
-      <a-tab-pane
-        key="nvr"
-        tab="NVR 設備"
-      >
-        <a-table
-          :data-source="pagedNvrs"
-          :columns="nvrColumns"
-          :loading="isLoading"
-          row-key="id"
-          :pagination="{
-            current: nvrPagination.current,
-            pageSize: nvrPagination.pageSize,
-            total: boundNvrs.length,
-            showSizeChanger: true,
-          }"
-          @change="handleNvrChange"
-        >
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'action'">
+    <div class="mb-4 flex items-center justify-between">
+      <span class="text-base font-medium">OrangePi 設備</span>
+      <a-button type="primary" @click="showBindDialog">
+        添加 OrangePi
+      </a-button>
+    </div>
+    <a-table
+      :data-source="pagedOrangepis"
+      :columns="orangepiColumns"
+      :loading="isLoading"
+      row-key="id"
+      :scroll="{ x: 1100 }"
+      :pagination="{
+        current: orangepiPagination.current,
+        pageSize: orangepiPagination.pageSize,
+        total: boundOrangepis.length,
+        showSizeChanger: true,
+      }"
+      @change="handleOrangepiChange"
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'is_active'">
+          <a-tag :color="record.is_active ? 'green' : 'red'">
+            {{ record.is_active ? "啟用" : "停用" }}
+          </a-tag>
+        </template>
+        <template v-else-if="column.key === 'building_channels'">
+          <a-select
+            v-model:value="channelDrafts[record.id]"
+            mode="multiple"
+            class="w-full"
+            placeholder="選擇可見頻道"
+            :options="channelOptionsFor(record)"
+            option-filter-prop="label"
+            max-tag-count="responsive"
+          />
+        </template>
+        <template v-else-if="column.key === 'action'">
+          <div class="flex items-center gap-1">
+            <a-tooltip title="保存可見頻道">
               <a-button
-                type="link"
-                danger
+                type="primary"
                 size="small"
-                @click="unbindNvr(record.id)"
+                :loading="savingChannelDeviceId === record.id"
+                aria-label="保存可見頻道"
+                @click="saveBuildingChannels(record)"
               >
-                解綁
+                <template #icon><SaveOutlined /></template>
+                保存
               </a-button>
-            </template>
-          </template>
-        </a-table>
-      </a-tab-pane>
-    </a-tabs>
+            </a-tooltip>
+            <a-button
+              type="link"
+              danger
+              size="small"
+              @click="unbindOrangepi(record.id)"
+            >
+              解綁
+            </a-button>
+          </div>
+        </template>
+      </template>
+    </a-table>
 
     <BindDeviceDialog
       :visible="isBindDialogVisible"
       :building-id="props.buildingData?.id"
-      :type="bindDialogType"
-      :bound-ids="bindDialogType === 'orangepi' ? boundOrangepis.map(o => o.id) : boundNvrs.map(n => n.id)"
+      :bound-ids="boundOrangepis.map((orangepi) => orangepi.id)"
       @update:visible="isBindDialogVisible = $event"
       @success="handleBindSuccess"
     />

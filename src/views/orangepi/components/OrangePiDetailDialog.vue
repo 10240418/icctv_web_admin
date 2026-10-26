@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { message, Modal } from "ant-design-vue";
-import { CopyOutlined, SaveOutlined } from "@ant-design/icons-vue";
+import { CopyOutlined, FolderAddOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons-vue";
 import type { Device } from "@/model/device";
 import type { Nvr } from "@/model/nvr";
 import type { MediaMTXPath } from "@/model/orangepi";
 import { AuthApi, DeviceApi, NvrApi, OrangePiRemoteApi } from "@/httpapis/api";
+import RTSPGroupImportDialog from "./RTSPGroupImportDialog.vue";
+import { channelKeyForPath } from "../channelCatalogue";
 
 interface Props {
   visible: boolean;
@@ -29,6 +31,8 @@ const currentPage = ref(0);
 const pageSize = ref(50);
 const isLoadingPaths = ref(false); // 單獨的 paths 加載狀態
 const isCopyingAllPathUrls = ref(false);
+const isGroupImportVisible = ref(false);
+const isImportingGroup = ref(false);
 
 // 新增/編輯 Path 相關
 const isPathDialogVisible = ref(false);
@@ -113,6 +117,8 @@ const resetData = () => {
   rtspGroups.value = [];
   selectedRTSPGroupID.value = undefined;
   selectedRTSPPathIndex.value = undefined;
+  isPathDialogVisible.value = false;
+  isGroupImportVisible.value = false;
 };
 
 const initializeData = async () => {
@@ -296,6 +302,20 @@ const showAddPathDialog = () => {
   isPathDialogVisible.value = true;
 };
 
+const showGroupImportDialog = () => {
+  if (!props.device || !staffToken.value) {
+    message.warning("請先生成Token");
+    return;
+  }
+  isPathDialogVisible.value = false;
+  isGroupImportVisible.value = true;
+};
+
+const handleGroupImported = async () => {
+  emit("refreshList");
+  await loadPathsList(currentPage.value);
+};
+
 const showEditPathDialog = async (pathName: string) => {
   if (!props.device || !staffToken.value) {
     message.warning("請先生成Token");
@@ -401,15 +421,19 @@ const syncSelectedRTSPRemark = async () => {
   const selectedPath = selectedRTSPPath.value;
   if (selectedPath.url.trim() !== pathFormData.value.source.trim()) return;
 
-  const channelMatch = pathFormData.value.name.trim().match(/^channel(\d+)$/i);
   const remark = selectedPath.remark?.trim();
-  if (!channelMatch?.[1] || !remark) return;
+  if (!remark) return;
+  const response = await DeviceApi.list();
+  const device = response.data.data.find((item) => item.id === props.device?.id);
+  if (!device) throw new Error("設備不存在");
+  const key = channelKeyForPath(device, pathFormData.value.name.trim());
+  if (!key) return;
 
   await DeviceApi.update(
     {
       channel_remarks: {
-        ...(props.device.channel_remarks || {}),
-        [`channel${channelMatch[1]}`]: remark,
+        ...(device.channel_remarks || {}),
+        [key]: remark,
       },
     },
     props.device.id
@@ -457,6 +481,7 @@ const handlePathSubmit = async () => {
         },
       });
       message.success("新增Path成功");
+      emit("refreshList");
     } else {
       await OrangePiRemoteApi.updatePath({
         id: props.device.id,
@@ -576,6 +601,7 @@ const saveCurrentPathsAsGroup = async () => {
 };
 
 const handleClose = () => {
+  if (isImportingGroup.value) return;
   emit("update:visible", false);
 };
 
@@ -661,6 +687,9 @@ const copyAllPathUrls = async () => {
     :title="dialogTitle"
     width="900px"
     :footer="null"
+    :closable="!isImportingGroup"
+    :mask-closable="!isImportingGroup"
+    :keyboard="!isImportingGroup"
     @cancel="handleClose"
   >
     <a-spin :spinning="isLoading">
@@ -671,7 +700,7 @@ const copyAllPathUrls = async () => {
         <template #tabBarExtraContent>
           <div
             v-if="activeTab === 'paths'"
-            class="flex gap-2 items-center"
+            class="flex flex-wrap justify-end gap-2 items-center"
           >
             <a-button
               @click="loadPathsList(currentPage)"
@@ -699,9 +728,15 @@ const copyAllPathUrls = async () => {
             </a-tooltip>
             <a-button
               type="primary"
+              :disabled="!staffToken"
               @click="showAddPathDialog"
             >
+              <template #icon><PlusOutlined /></template>
               新增Path
+            </a-button>
+            <a-button :disabled="!staffToken" @click="showGroupImportDialog">
+              <template #icon><FolderAddOutlined /></template>
+              新增一組 RTSP
             </a-button>
           </div>
         </template>
@@ -932,6 +967,16 @@ const copyAllPathUrls = async () => {
       </a-form>
     </a-modal>
 
+    <RTSPGroupImportDialog
+      :visible="isGroupImportVisible"
+      :device="device"
+      :token="staffToken"
+      :initial-group-id="selectedRTSPGroupID"
+      @update:visible="isGroupImportVisible = $event"
+      @update:busy="isImportingGroup = $event"
+      @imported="handleGroupImported"
+    />
+
     <!-- Path 新增/編輯對話框 -->
     <a-modal
       v-model:open="isPathDialogVisible"
@@ -940,6 +985,18 @@ const copyAllPathUrls = async () => {
       @ok="handlePathSubmit"
       @cancel="isPathDialogVisible = false"
     >
+      <template #footer>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <a-button v-if="pathDialogMode === 'add'" @click="showGroupImportDialog">
+            <template #icon><FolderAddOutlined /></template>
+            新增一組 RTSP
+          </a-button>
+          <a-space class="ml-auto">
+            <a-button @click="isPathDialogVisible = false">取消</a-button>
+            <a-button type="primary" :loading="isLoading" @click="handlePathSubmit">確定</a-button>
+          </a-space>
+        </div>
+      </template>
       <a-form
         :label-col="{ span: 6 }"
         :wrapper-col="{ span: 18 }"
@@ -1023,5 +1080,14 @@ const copyAllPathUrls = async () => {
 :deep(.ant-tabs-extra-content) {
   display: flex;
   align-items: center;
+}
+
+:deep(.ant-tabs-nav) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+:deep(.ant-tabs-nav-wrap) {
+  flex-shrink: 0;
 }
 </style>

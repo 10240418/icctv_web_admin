@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { message } from "ant-design-vue";
+import { ReloadOutlined } from "@ant-design/icons-vue";
 import type { Device } from "@/model/device";
 import type { Building } from "@/model/building";
-import { BuildingApi } from "@/httpapis/api";
+import { AuthApi, BuildingApi, OrangePiRemoteApi } from "@/httpapis/api";
 import { useOrangePiData } from "../useOrangePi";
+import { catalogueChannels, channelLabel } from "../channelCatalogue";
+import { importErrorMessage } from "../rtspGroupImport";
 
 const props = defineProps<{
   visible: boolean;
@@ -20,6 +23,36 @@ const emit = defineEmits<{
 }>();
 
 const { create, update, remoteUpdatePorts } = useOrangePiData();
+const syncedDevice = ref<Device>();
+const isSyncingChannels = ref(false);
+const channelSyncError = ref("");
+let syncVersion = 0;
+
+const syncChannels = async () => {
+  const device = props.deviceData;
+  if (props.mode !== "edit" || !device || !props.visible) return;
+  const version = ++syncVersion;
+  isSyncingChannels.value = true;
+  channelSyncError.value = "";
+  try {
+    const response = await AuthApi.publicToken({
+      ismartid: device.ismartids?.[0] || device.ismartid,
+      is_staff: true,
+    });
+    if (version !== syncVersion) return;
+    const token = response.data.data.orangepis
+      .find((item) => item.orangepi_id === device.id)?.token;
+    if (!token) throw new Error("未找到設備 Token");
+    const result = await OrangePiRemoteApi.syncChannels(device.id, token);
+    if (version === syncVersion) syncedDevice.value = result.data.data;
+  } catch (error) {
+    if (version === syncVersion) {
+      channelSyncError.value = `同步頻道失敗：${importErrorMessage(error)}`;
+    }
+  } finally {
+    if (version === syncVersion) isSyncingChannels.value = false;
+  }
+};
 
 const formRef = ref();
 const formData = ref<{
@@ -41,20 +74,23 @@ const formData = ref<{
   channel_remarks: {},
 });
 
-// 频道选项 (1-8)，用于多选下拉框
-const channelOptions = Array.from({ length: 8 }, (_, i) => ({
-  label: `Channel ${i + 1}`,
-  value: i + 1,
-}));
-
-const remarkChannelOptions = computed(() => {
-  const selected = new Set([
+// Use the device catalogue without a fixed channel count or synthetic ranges.
+const channelOptions = computed(() => {
+  const channels = new Set([
+    ...(props.deviceData?.all_channels || []),
+    ...(props.deviceData?.user_channels || []),
+    ...catalogueChannels(syncedDevice.value || props.deviceData),
     ...formData.value.all_channels,
     ...formData.value.user_channels,
   ]);
-  return selected.size
-    ? channelOptions.filter((option) => selected.has(option.value))
-    : channelOptions;
+
+  return Array.from(channels)
+    .filter((channel) => Number.isInteger(channel) && channel > 0)
+    .sort((left, right) => left - right)
+    .map((channel) => ({
+      label: channelLabel(syncedDevice.value || props.deviceData || {}, channel),
+      value: channel,
+    }));
 });
 
 const compactChannelRemarks = (values: Record<string, string>) =>
@@ -63,20 +99,6 @@ const compactChannelRemarks = (values: Record<string, string>) =>
       .map(([key, value]) => [key, value.trim()] as const)
       .filter(([, value]) => value !== "")
   );
-
-// 处理全部频道的选择逻辑：点击某个频道时自动选中 1 到该频道的所有频道
-const handleAllChannelsChange = (values: number[]) => {
-  if (values.length === 0) {
-    formData.value.all_channels = [];
-    return;
-  }
-  // 找到最大的频道号，自动选中 1 到该频道
-  const maxChannel = Math.max(...values);
-  formData.value.all_channels = Array.from(
-    { length: maxChannel },
-    (_, i) => i + 1
-  );
-};
 
 const isLoading = ref(false);
 const buildings = ref<Building[]>([]);
@@ -98,9 +120,13 @@ watch(
   () => props.visible,
   () => {
     if (!props.visible) {
+      syncVersion++;
+      isSyncingChannels.value = false;
       isLoading.value = false;
       return;
     }
+    syncedDevice.value = undefined;
+    channelSyncError.value = "";
 
     if (props.mode === "edit" && props.deviceData) {
       formData.value = {
@@ -113,8 +139,8 @@ watch(
         icctv_auth_service_remote_port:
           props.deviceData.icctv_auth_service_remote_port,
         ssh_remote_port: props.deviceData.ssh_remote_port,
-        user_channels: props.deviceData.user_channels || [],
-        all_channels: props.deviceData.all_channels || [],
+        user_channels: [...(props.deviceData.user_channels || [])],
+        all_channels: [...(props.deviceData.all_channels || [])],
         channel_remarks: { ...(props.deviceData.channel_remarks || {}) },
       };
     } else {
@@ -129,12 +155,13 @@ watch(
       };
     }
     loadBuildings();
+    void syncChannels();
   },
   { immediate: true }
 );
 
 const handleOk = () => {
-  if (isLoading.value) return;
+  if (isLoading.value || isSyncingChannels.value) return;
 
   formRef.value
     .validate()
@@ -180,14 +207,14 @@ const handleOk = () => {
           updateData.ssh_remote_port = formData.value.ssh_remote_port;
         }
         if (
-          JSON.stringify(formData.value.user_channels?.sort()) !==
-          JSON.stringify(props.deviceData?.user_channels?.sort() || [])
+          JSON.stringify([...formData.value.user_channels].sort()) !==
+          JSON.stringify([...(props.deviceData?.user_channels || [])].sort())
         ) {
           updateData.user_channels = formData.value.user_channels;
         }
         if (
-          JSON.stringify(formData.value.all_channels?.sort()) !==
-          JSON.stringify(props.deviceData?.all_channels?.sort() || [])
+          JSON.stringify([...formData.value.all_channels].sort()) !==
+          JSON.stringify([...(props.deviceData?.all_channels || [])].sort())
         ) {
           updateData.all_channels = formData.value.all_channels;
         }
@@ -279,9 +306,23 @@ const handleCancel = () => {
     :title="props.mode === 'create' ? '新增 香橙派' : '編輯 香橙派'"
     :mask-closable="false"
     :confirm-loading="isLoading"
+    :ok-button-props="{ disabled: isSyncingChannels }"
     @ok="handleOk"
     @cancel="handleCancel"
   >
+    <div v-if="props.mode === 'edit'" class="mb-3 flex items-center justify-end gap-2">
+      <a-alert v-if="channelSyncError" type="warning" :message="channelSyncError" show-icon class="min-w-0 flex-1" />
+      <a-tooltip title="同步頻道">
+        <a-button
+          aria-label="同步頻道"
+          :loading="isSyncingChannels"
+          :disabled="isLoading"
+          @click="syncChannels"
+        >
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
+      </a-tooltip>
+    </div>
     <a-form
       ref="formRef"
       :model="formData"
@@ -350,12 +391,14 @@ const handleCancel = () => {
         :rules="[]"
       >
         <a-select
-          :value="formData.all_channels"
+          v-model:value="formData.all_channels"
           mode="multiple"
-          placeholder="請選擇頻道 (點擊某頻道自動選中 1 到該頻道)"
+          placeholder="請選擇設備頻道"
+          option-filter-prop="label"
+          max-tag-count="responsive"
           style="width: 100%"
           :options="channelOptions"
-          @change="handleAllChannelsChange"
+          :loading="isSyncingChannels"
         />
       </a-form-item>
 
@@ -367,21 +410,30 @@ const handleCancel = () => {
         <a-select
           v-model:value="formData.user_channels"
           mode="multiple"
+          max-tag-count="responsive"
           placeholder="請選擇用戶可訪問的頻道"
+          option-filter-prop="label"
           style="width: 100%"
           :options="channelOptions"
+          :loading="isSyncingChannels"
         />
       </a-form-item>
 
       <a-form-item label="頻道說明">
-        <div class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
-          <a-input
-            v-for="option in remarkChannelOptions"
+        <div class="grid max-h-80 w-full grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+          <div
+            v-for="option in channelOptions"
             :key="option.value"
-            v-model:value="formData.channel_remarks[`channel${option.value}`]"
-            :addon-before="`Channel ${option.value}`"
-            placeholder="例如：大堂監控"
-          />
+            class="min-w-0"
+          >
+            <div class="mb-1 break-all text-xs text-gray-500">{{ option.label }}</div>
+            <a-input
+              v-model:value="formData.channel_remarks[`channel${option.value}`]"
+              :aria-label="`${option.label} 說明`"
+              :title="option.label"
+              placeholder="例如：大堂監控"
+            />
+          </div>
         </div>
       </a-form-item>
     </a-form>
@@ -390,4 +442,3 @@ const handleCancel = () => {
 
 <style scoped>
 </style>
-

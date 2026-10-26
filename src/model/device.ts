@@ -11,6 +11,7 @@ export interface Device extends ModelFields {
   all_channels?: number[]
   building_channels?: number[]
   channel_remarks?: Record<string, string>
+  channel_paths?: Record<string, string>
 }
 
 export type DeviceList = PaginatedResult<Device>

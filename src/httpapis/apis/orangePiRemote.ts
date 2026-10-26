@@ -1,5 +1,6 @@
 import { http } from '../index'
 import type { ApiResponse } from './types'
+import type { Device } from '../../model/device'
 import type {
   OrangePiRemoteHealth,
   OrangePiRemoteInfo,
@@ -20,6 +21,14 @@ import type {
 // 8. func OrangePiRemoteApi.deletePath - 删除 path
 
 export const OrangePiRemoteApi = {
+  syncChannels(id: number, token: string) {
+    return http.post<ApiResponse<Device>>(
+      `/orangepi/remote/channels/sync?id=${id}`,
+      { token },
+      { timeout: 120_000 },
+    )
+  },
+
   // 1. func OrangePiRemoteApi.updatePorts - 远程端口更新
   // POST /api/orangepi/remote/ports
   updatePorts(data: {
@@ -91,6 +100,7 @@ export const OrangePiRemoteApi = {
         name: data.name,
         config: data.config,
       },
+      { timeout: 45_000 },
     )
   },
 
