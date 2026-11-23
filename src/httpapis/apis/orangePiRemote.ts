@@ -71,11 +71,23 @@ export const OrangePiRemoteApi = {
     )
   },
 
+  previewPaths(data: {
+    id: number
+    ismartid: string
+    page?: number
+    items_per_page?: number
+  }) {
+    return http.get<ApiResponse<MediaMTXPathsResponse>>(
+      `/orangepi/remote/paths/preview?id=${data.id}&ismartid=${encodeURIComponent(data.ismartid)}&page=${data.page ?? 0}&items_per_page=${data.items_per_page ?? 50}`,
+    )
+  },
+
   // 5. func OrangePiRemoteApi.getPathDetail - 查询单个 path
   // GET /api/orangepi/remote/paths/detail?id=1&token=xxx&name=channel1
   getPathDetail(data: { id: number; token: string; name: string }) {
     return http.get<ApiResponse<MediaMTXPathDetail>>(
-      `/orangepi/remote/paths/detail?id=${data.id}&token=${data.token}&name=${data.name}`,
+      '/orangepi/remote/paths/detail',
+      { params: data },
     )
   },
 
@@ -119,6 +131,7 @@ export const OrangePiRemoteApi = {
       {
         config: data.config,
       },
+      { timeout: 45_000 },
     )
   },
 

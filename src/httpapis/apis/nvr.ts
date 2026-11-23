@@ -21,9 +21,10 @@ export const NvrApi = {
     name: string
     url: string
     building_id: number
+    orangepi_id?: number
     admin_user?: { name: string; password: string }
     users?: Array<{ name: string; password: string }>
-    rtsp_urls?: Array<{ channel?: number; path?: string; url: string; remark?: string }>
+    rtsp_urls?: Array<{ id?: string; source_id?: number; channel?: number; path?: string; url: string; remark?: string; visible?: boolean }>
   }) {
     return http.post<ApiResponse<Nvr>>('/nvr', data)
   },
@@ -35,9 +36,11 @@ export const NvrApi = {
       name?: string
       url?: string
       building_id?: number
+      orangepi_id?: number
+      binding?: { building_id: number; orangepi_id: number }
       admin_user?: { name: string; password: string }
       users?: Array<{ name: string; password: string }>
-      rtsp_urls?: Array<{ channel?: number; path?: string; url: string; remark?: string }>
+      rtsp_urls?: Array<{ id?: string; source_id?: number; channel?: number; path?: string; url: string; remark?: string; visible?: boolean }>
     },
     id: number,
   ) {

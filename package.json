@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "test:browser": "node tests/rtspGroupImport.browser.mjs"
+    "test:browser": "node tests/rtspGroupImport.browser.mjs",
+    "test:browser:rtsp-list": "node tests/rtspList.browser.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",

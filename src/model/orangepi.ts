@@ -26,7 +26,7 @@ export interface OrangePiRemoteHealth {
 
 export interface MediaMTXPath {
   name: string
-  ready: boolean
+  ready?: boolean
   confName: string
   readyTime?: string
   source?: string  // RTSP URL

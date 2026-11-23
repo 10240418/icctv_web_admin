@@ -4,10 +4,13 @@ import { NvrApi } from '@/httpapis/api'
 import type { Nvr, NvrList } from '@/model/nvr'
 
 export type RTSPPathInput = {
+  id?: string
+  source_id?: number
   channel?: number
   path?: string
   url: string
   remark?: string
+  visible?: boolean
 }
 
 type NvrState = {
@@ -50,9 +53,11 @@ export const useNvrData = () => {
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
     { title: '組名稱', dataIndex: 'name', key: 'name', width: 220 },
+    { title: '大厦', key: 'building', width: 180 },
+    { title: 'OrangePi', key: 'orangepi', width: 160 },
     { title: 'Path 數量', key: 'path_count', width: 110 },
     { title: 'Paths', key: 'paths', width: 420 },
-    { title: '更新時間', dataIndex: 'updatedAt', key: 'updatedAt', width: 180 },
+    { title: '組更新時間（香港）', dataIndex: 'updatedAt', key: 'updatedAt', width: 230 },
     { title: '操作', key: 'action', width: 140 },
   ]
 
@@ -90,19 +95,21 @@ export const useNvrData = () => {
     }
   }
 
-  const create = async (data: { name: string; rtsp_urls: RTSPPathInput[] }) => {
+  const create = async (data: { name: string; building_id: number; orangepi_id: number; rtsp_urls: RTSPPathInput[] }) => {
     sharedState.isLoading.value = true
     try {
       await NvrApi.create({
         name: data.name,
         url: '',
-        building_id: 0,
+        building_id: data.building_id,
+        orangepi_id: data.orangepi_id,
         rtsp_urls: data.rtsp_urls,
       })
       message.success('RTSP 組已創建')
       await list()
     } catch (error: any) {
       message.error(`創建失敗: ${error.response?.data?.error || error.message}`)
+      await list().catch(() => undefined)
       return Promise.reject(error)
     } finally {
       sharedState.isLoading.value = false
@@ -110,16 +117,20 @@ export const useNvrData = () => {
   }
 
   const update = async (
-    data: { name: string; rtsp_urls: RTSPPathInput[] },
+    data: { name: string; building_id: number; orangepi_id: number; rtsp_urls: RTSPPathInput[] },
     id: number,
   ) => {
     sharedState.isLoading.value = true
     try {
-      await NvrApi.update(data, id)
+      await NvrApi.update({
+        ...data,
+        binding: { building_id: data.building_id, orangepi_id: data.orangepi_id },
+      }, id)
       message.success('RTSP 組已更新')
       await list()
     } catch (error: any) {
       message.error(`更新失敗: ${error.response?.data?.error || error.message}`)
+      await list().catch(() => undefined)
       return Promise.reject(error)
     } finally {
       sharedState.isLoading.value = false

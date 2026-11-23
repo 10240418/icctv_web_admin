@@ -24,6 +24,12 @@ export const appRoutes: RouteRecordRaw[] = [
     component: () => import('../views/nvr/NvrView.vue'),
   },
   {
+    path: '/rtsp',
+    name: 'RtspList',
+    meta: { title: 'RTSP 清單', subtitle: 'RTSP Addresses', icon: 'list' },
+    component: () => import('../views/nvr/RTSPListView.vue'),
+  },
+  {
     path: '/admin',
     name: 'Admin',
     meta: { title: '賬戶管理', subtitle: 'Account Management', icon: 'team' },

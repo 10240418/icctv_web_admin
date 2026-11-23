@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createRTSPImportItems,
+  assignRTSPChannelNames,
   importErrorMessage,
   importRTSPPaths,
   listAllRTSPPaths,
@@ -31,7 +32,7 @@ test("reads all pages before checking conflicts", async () => {
   const paths = await listAllRTSPPaths(async (page) => {
     pages.push(page);
     return {
-      items: [{ name: `channel${page * 50 + 1}` }],
+      items: Array.from({ length: page < 2 ? 50 : 1 }, (_, i) => ({ name: `channel${page * 50 + i + 1}` })),
       itemsTotal: 101,
       itemsPage: page,
     };
@@ -124,4 +125,65 @@ test("structured and unexpected errors produce readable messages", () => {
   assert.equal(importErrorMessage(new Error("network error")), "network error");
   assert.equal(importErrorMessage({ response: { data: { detail: "Forbidden" } } }), "Forbidden");
   assert.equal(importErrorMessage(null), "操作失敗");
+});
+
+test("assigns canonical names without reusing paths, catalogue IDs, or selections", () => {
+  const items = createRTSPImportItems([
+    stream(0, { path: "SO_MAIN", url: "rtsp://camera.example/SO_MAIN", remark: "Entrance" }),
+    stream(3),
+    stream(3),
+    stream(0, { path: "channel_SO_MAIN" }),
+  ]);
+  assignRTSPChannelNames(items, {
+    all_channels: [1, 9],
+    channel_paths: { channel10: "OldGate", channel11: "channel50" },
+  }, [{ name: "channel70" }, { name: "SO_MAIN" }]);
+  assert.deepEqual(items.map((item) => item.name), ["channel71", "channel3", "channel72", "channel73"]);
+  assert.equal(items[0].source, "rtsp://camera.example/SO_MAIN");
+  assert.equal(items[0].originalName, "SO_MAIN");
+  assert.equal(items[0].remark, "Entrance - SO_MAIN");
+  assert.equal(items[3].remark, "channel_SO_MAIN");
+});
+
+test("strict channel names reject uppercase, zero, suffixes, and unsafe integers", async () => {
+  for (const name of ["SO_MAIN", "channel_SO_MAIN", "Channel1", "channel0", "channel01", "channel-1", "channel1/whep", "channel9007199254740992"]) {
+    const [item] = createRTSPImportItems([stream(1, { path: name })]);
+    await importRTSPPaths([item], [], async () => assert.fail(`sent invalid name ${name}`));
+    assert.equal(item.status, "error");
+  }
+});
+
+test("a reserved ID is never reused even when the device path is absent", async () => {
+  const items = createRTSPImportItems([stream(10)]);
+  await importRTSPPaths(items, [], async () => assert.fail("reused an existing permission ID"), ["channel10"]);
+  assert.equal(items[0].status, "conflict");
+});
+
+test("incomplete or changing pagination cannot produce an allocation", async () => {
+  for (const mode of ["missing-total", "incomplete", "duplicate", "changed"]) {
+    await assert.rejects(listAllRTSPPaths(async (page) => ({
+      itemsTotal: mode === "missing-total" ? undefined : mode === "changed" && page === 1 ? 3 : 2,
+      items: mode === "incomplete" ? [] : [{ name: mode === "duplicate" ? "channel1" : `channel${page + 1}` }],
+    }), 1));
+  }
+});
+
+test("allocated names are retained on retry after partial success", async () => {
+  const items = createRTSPImportItems([stream(0, { path: "SO_MAIN" }), stream(0, { path: "SO_SUB" })]);
+  assignRTSPChannelNames(items, { all_channels: [1, 9] }, Array.from({ length: 9 }, (_, index) => ({
+    name: `channel${index + 1}`,
+  })));
+  let fail = true;
+  const sent = [];
+  const add = async (item) => {
+    sent.push(item.name);
+    if (item.name === "channel11" && fail) {
+      fail = false;
+      throw new Error("retry");
+    }
+  };
+  await importRTSPPaths(items, [], add);
+  await importRTSPPaths(items, [{ name: "channel10" }], add);
+  assert.deepEqual(sent, ["channel10", "channel11", "channel11"]);
+  assert.deepEqual(items.map((item) => item.status), ["success", "success"]);
 });

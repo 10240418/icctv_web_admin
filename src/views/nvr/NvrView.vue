@@ -3,9 +3,10 @@ import { onActivated, onMounted, ref } from "vue";
 import { message, Modal } from "ant-design-vue";
 import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons-vue";
 import type { Nvr } from "@/model/nvr";
-import { formatDate } from "@/utils/dateFormat";
+import { formatDateTime } from "@/utils/dateFormat";
 import NvrEditDialog from "./components/NvrEditDialog.vue";
 import { useNvrData } from "./useNvr";
+import { sortChannelPaths } from "../orangepi/channelCatalogue";
 
 const { data, rawData, columns, isLoading, searchKeyword, list, remove, fetch, search } =
   useNvrData();
@@ -38,6 +39,8 @@ const confirmDelete = (group: Nvr) => {
 
 const pathName = (item: Nvr["rtsp_urls"][number]) =>
   item.path || (item.channel ? `channel${item.channel}` : "未命名");
+
+const sortedPaths = (items: Nvr["rtsp_urls"]) => sortChannelPaths(items);
 
 const copyPathName = async (name: string) => {
   try {
@@ -134,17 +137,29 @@ onActivated(list);
       :columns="columns"
       :loading="isLoading"
       row-key="id"
-      :scroll="{ x: 1050 }"
+      :scroll="{ x: 1440 }"
       :pagination="{ defaultPageSize: 10, showSizeChanger: true }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'path_count'">
           {{ record.rtsp_urls?.length || 0 }}
         </template>
+        <template v-else-if="column.key === 'building'">
+          {{ record.building?.name || "未绑定" }}
+        </template>
+        <template v-else-if="column.key === 'orangepi'">
+          {{ record.orangepi?.name || "未绑定" }}
+        </template>
         <template v-else-if="column.key === 'paths'">
           <div class="flex max-w-[420px] flex-wrap gap-1">
-            <span v-for="item in record.rtsp_urls || []" :key="pathName(item)" class="inline-flex items-center">
+            <span v-for="item in sortedPaths(record.rtsp_urls || [])" :key="pathName(item)" class="inline-flex items-center">
               <a-tag>{{ pathName(item) }}</a-tag>
+              <a-tooltip v-if="item.sync_error" :title="item.sync_error">
+                <a-tag color="error">同步失败</a-tag>
+              </a-tooltip>
+              <a-tag v-else-if="item.sync_status === 'success'" color="success">已同步</a-tag>
+              <a-tag v-else-if="record.orangepi_id" color="processing">待同步</a-tag>
+              <a-tag v-if="item.visible === false" color="default">隐藏</a-tag>
               <a-tooltip :title="`複製 ${pathName(item)}`">
                 <a-button type="text" size="small" @click="copyPathName(pathName(item))">
                   <template #icon><CopyOutlined /></template>
@@ -155,7 +170,7 @@ onActivated(list);
           </div>
         </template>
         <template v-else-if="column.key === 'updatedAt'">
-          {{ formatDate(record.updatedAt) }}
+          {{ formatDateTime(record.updatedAt) }}
         </template>
         <template v-else-if="column.key === 'action'">
           <div class="flex items-center gap-1">

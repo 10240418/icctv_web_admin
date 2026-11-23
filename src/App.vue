@@ -11,6 +11,7 @@ import {
   SettingOutlined,
   VideoCameraOutlined,
   CodeOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons-vue";
 
 const route = useRoute();
@@ -25,6 +26,7 @@ const iconMap = {
   setting: SettingOutlined,
   "video-camera": VideoCameraOutlined,
   code: CodeOutlined,
+  list: UnorderedListOutlined,
 };
 
 const navigationRoutes = computed(() =>
